@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "953989401529",
+    "project_id": "pictospeak-fabb4",
+    "storage_bucket": "pictospeak-fabb4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:953989401529:android:1badc681242c729b274468",
+        "android_client_info": {
+          "package_name": "com.example.pictoSpeak"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUWU2SPqIRSzzjYSdi1QoJ_sT2MFCgHOE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:953989401529:android:a7f6e4fb6b53a32b274468",
+        "android_client_info": {
+          "package_name": "com.example.pictoSpeak.pictospeak"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUWU2SPqIRSzzjYSdi1QoJ_sT2MFCgHOE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
