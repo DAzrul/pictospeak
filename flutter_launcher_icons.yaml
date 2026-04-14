@@ -1,0 +1,6 @@
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/pictospeak.png"
+  adaptive_icon_background: "#F8FAFC" # Warna putih kebiruan ikut tema app kau
+  adaptive_icon_foreground: "assets/images/pictospeak.png"
