@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../core/services/database_service.dart';
+import '../../core/services/prediction_service.dart';
+import '../../core/services/tts_service.dart'; // Import mulut (TTS)
+import '../../core/models/pictogram_model.dart';
 import '../../core/theme/app_theme.dart';
 
 class SvoBuilderScreen extends StatefulWidget {
@@ -9,44 +13,68 @@ class SvoBuilderScreen extends StatefulWidget {
 }
 
 class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
+  final DatabaseService _dbService = DatabaseService();
+  final PredictionService _predictionService = PredictionService(); // Otak AI
+  final TtsService _ttsService = TtsService(); // Suara AI
+
   String? selectedSubject;
   String? selectedVerb;
   String? selectedObject;
+  List<String> dynamicSuggestions = [];
 
-  // Logik Tekaan Dinamik (Mockup N-gram/Markov Chain) [cite: 14]
-  List<Map<String, dynamic>> get suggestedWords {
-    if (selectedSubject == null) {
-      return [{'label': 'I / Saya', 'icon': Icons.person_outline}];
-    } else if (selectedVerb == null) {
-      return [
-        {'label': 'want / mahu', 'icon': Icons.favorite_border},
-        {'label': 'need / perlu', 'icon': Icons.pan_tool_outlined},
-        {'label': 'feel / rasa', 'icon': Icons.sentiment_satisfied},
-      ];
-    } else if (selectedObject == null) {
-      return [
-        {'label': 'food / makanan', 'icon': Icons.restaurant},
-        {'label': 'water / air', 'icon': Icons.water_drop_outlined},
-        {'label': 'rest / rehat', 'icon': Icons.bed_outlined},
-      ];
-    }
-    return [];
+  @override
+  void initState() {
+    super.initState();
+    _updateSuggestions();
   }
 
-  // Fungsi untuk trigger suara SOS [cite: 15]
-  void _triggerSOS(BuildContext context) {
+  void _updateSuggestions() async {
+    String currentWord = "";
+    if (selectedVerb != null) {
+      currentWord = selectedVerb!;
+    } else if (selectedSubject != null) {
+      currentWord = selectedSubject!;
+    }
+
+    List<String> suggestions = await _predictionService.getSuggestions(
+        currentWord,
+        currentCategory
+    );
+
+    setState(() {
+      dynamicSuggestions = suggestions;
+    });
+  }
+
+  String get currentCategory {
+    if (selectedSubject == null) return 'Subject';
+    if (selectedVerb == null) return 'Verb';
+    return 'Object';
+  }
+
+  IconData _getIconData(String category) {
+    switch (category) {
+      case 'Subject': return Icons.person_outline;
+      case 'Verb': return Icons.play_arrow_outlined;
+      case 'Object': return Icons.category_outlined;
+      default: return Icons.help_outline;
+    }
+  }
+
+  // 🚨 FUNGSI SOS BERCAKAP!
+  void _triggerSOS(BuildContext context) async {
     const String sosEn = "Help me, please call my caregiver!";
     const String sosMs = "Tolong saya, sila panggil penjaga saya!";
 
-    debugPrint("SOS TRIGGERED: $sosEn");
+    // Jerit guna TTS!
+    await _ttsService.speak(sosEn, lang: "en-US");
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('🚨 SOS: Tolong saya, sila panggil penjaga saya!'),
+        content: Text('🚨 SOS: $sosMs'),
         backgroundColor: Colors.red[900],
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -61,6 +89,7 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
         selectedObject = label;
       }
     });
+    _updateSuggestions();
   }
 
   @override
@@ -72,52 +101,18 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            _ttsService.stop(); // Stop bunyi kalau keluar skrin
+            Navigator.pop(context);
+          },
         ),
         title: const Text('Build Sentence', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
       body: Column(
         children: [
-          // 1. BAR SOS (BUTTON STYLE) - Ikut design image_7d464e.png
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Material(
-              elevation: 4,
-              borderRadius: BorderRadius.circular(12),
-              color: Colors.orange[800],
-              child: InkWell(
-                onTap: () => _triggerSOS(context),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
-                      SizedBox(width: 10),
-                      Text(
-                        'SOS / Call Caregiver',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          _buildSosBar(),
 
-          // 2. Slot Pembina Ayat (SVO) [cite: 21, 25]
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -128,120 +123,77 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
                 const SizedBox(width: 8),
                 _buildSvoSlot('Object', selectedObject, selectedVerb != null),
                 const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () {
-                    setState(() {
-                      if (selectedObject != null) {
-                        selectedObject = null;
-                      } else if (selectedVerb != null) {
-                        selectedVerb = null;
-                      } else if (selectedSubject != null) {
-                        selectedSubject = null;
-                      }
-                    });
-                  },
-                  icon: const Icon(Icons.undo_rounded, color: Colors.grey),
-                ),
+                _buildUndoButton(),
               ],
             ),
           ),
 
-          // 3. Bar Cadangan Piktogram Pintar [cite: 14, 25]
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.blue.withValues(alpha: 0.05),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('SUGGESTED WORDS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: suggestedWords.map((word) => _buildSuggestChip(word)).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildSuggestedWordsBar(),
 
-          // 4. Grid Piktogram Gergasi [cite: 13, 17]
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 0.8,
-                ),
-                itemCount: suggestedWords.length,
-                itemBuilder: (context, index) {
-                  final word = suggestedWords[index];
-                  return _buildLargeIconButton(word);
+              child: StreamBuilder<List<Pictogram>>(
+                stream: _dbService.getPictograms(currentCategory),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final pictograms = snapshot.data ?? [];
+                  return GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 0.8,
+                    ),
+                    itemCount: pictograms.length,
+                    itemBuilder: (context, index) {
+                      final pic = pictograms[index];
+                      return _buildLargeIconButton({
+                        'label': '${pic.labelEn} / ${pic.labelMs}',
+                        'icon': _getIconData(pic.category),
+                      });
+                    },
+                  );
                 },
               ),
             ),
           ),
 
-          // 5. Butang Speak (Voice Output) [cite: 15, 26]
-          Container(
-            padding: const EdgeInsets.all(20),
-            color: Colors.white,
-            child: Column(
+          _buildSpeakButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSosBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.orange[800],
+        child: InkWell(
+          onTap: () => _triggerSOS(context),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton.icon(
-                    onPressed: (selectedSubject != null)
-                        ? () {
-                      String sentenceEn = selectedSubject!.split(' / ')[0];
-                      String sentenceMs = selectedSubject!.split(' / ')[1];
-                      if (selectedVerb != null) {
-                        sentenceEn += " ${selectedVerb!.split(' / ')[0]}";
-                        sentenceMs += " ${selectedVerb!.split(' / ')[1]}";
-                      }
-                      if (selectedObject != null) {
-                        sentenceEn += " ${selectedObject!.split(' / ')[0]}";
-                        sentenceMs += " ${selectedObject!.split(' / ')[1]}";
-                      }
-                      debugPrint("TTS SPEAKING: $sentenceEn");
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('TTS Bunyi: $sentenceEn / $sentenceMs'),
-                          backgroundColor: AppTheme.primaryBlue,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      );
-                    }
-                        : null,
-                    icon: const Icon(Icons.volume_up, color: Colors.white),
-                    label: const Text('Speak', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryBlue,
-                      disabledBackgroundColor: Colors.grey[300],
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      selectedSubject = null;
-                      selectedVerb = null;
-                      selectedObject = null;
-                    });
-                  },
-                  child: const Text('Clear sentence', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                ),
+                Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
+                SizedBox(width: 10),
+                Text('SOS / Call Caregiver', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -263,6 +215,43 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
               ? Text(val.split(' / ')[0], style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryBlue))
               : Text(title, style: TextStyle(fontSize: 10, color: Colors.grey[400])),
         ),
+      ),
+    );
+  }
+
+  Widget _buildUndoButton() {
+    return IconButton(
+      onPressed: () {
+        setState(() {
+          if (selectedObject != null) selectedObject = null;
+          else if (selectedVerb != null) selectedVerb = null;
+          else if (selectedSubject != null) selectedSubject = null;
+        });
+        _updateSuggestions();
+      },
+      icon: const Icon(Icons.undo_rounded, color: Colors.grey),
+    );
+  }
+
+  Widget _buildSuggestedWordsBar() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.blue.withValues(alpha: 0.05),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('SUGGESTED WORDS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: dynamicSuggestions.isEmpty
+                  ? [const Text("Tiada cadangan...", style: TextStyle(fontSize: 12, color: Colors.grey))]
+                  : dynamicSuggestions.map((label) => _buildSuggestChip({'label': label, 'icon': _getIconData(currentCategory)})).toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -305,9 +294,76 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
             Icon(word['icon'], size: 40, color: AppTheme.primaryBlue),
             const SizedBox(height: 12),
             Text(word['label'].split(' / ')[0], style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(word['label'].split(' / ')[1], style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Text(word['label'].split(' / ')[1], style: TextStyle(fontSize: 10, color: Colors.grey[600])),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSpeakButton() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      color: Colors.white,
+      child: Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 60,
+            child: ElevatedButton.icon(
+              onPressed: (selectedSubject != null)
+                  ? () async {
+                String sentenceEn = selectedSubject!.split(' / ')[0];
+                String sentenceMs = selectedSubject!.split(' / ')[1]; // Tarik BM sekali
+
+                if (selectedVerb != null) {
+                  sentenceEn += " ${selectedVerb!.split(' / ')[0]}";
+                  sentenceMs += " ${selectedVerb!.split(' / ')[1]}";
+                }
+                if (selectedObject != null) {
+                  sentenceEn += " ${selectedObject!.split(' / ')[0]}";
+                  sentenceMs += " ${selectedObject!.split(' / ')[1]}";
+                }
+
+                // 🗣️ BERCAKAP GUNA TTS (ENGLISH)
+                await _ttsService.speak(sentenceEn, lang: "en-US");
+
+                // 🧠 SIMPAN SEJARAH (MARKOV CHAIN)
+                if (selectedSubject != null && selectedVerb != null && selectedObject != null) {
+                  await _predictionService.logUsage(selectedSubject!, selectedVerb!, selectedObject!);
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Speaking: $sentenceEn / $sentenceMs'),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: AppTheme.primaryBlue,
+                  ),
+                );
+              }
+                  : null,
+              icon: const Icon(Icons.volume_up, color: Colors.white),
+              label: const Text('Speak', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryBlue,
+                disabledBackgroundColor: Colors.grey[300],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              _ttsService.stop(); // Stop bunyi kalau pesakit tekan Clear
+              setState(() {
+                selectedSubject = null;
+                selectedVerb = null;
+                selectedObject = null;
+                _updateSuggestions();
+              });
+            },
+            child: const Text('Clear sentence', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ),
+        ],
       ),
     );
   }
