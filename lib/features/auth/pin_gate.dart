@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
-import 'services/auth_service.dart'; // Wajib import ni
-import '../caregiver/caregiver_dashboard.dart'; // Import Dashboard kau
+import '../../core/services/sync_service.dart'; // 🚨 J.A.R.V.I.S: Import lintah
+import 'services/auth_service.dart';
+import '../caregiver/caregiver_dashboard.dart';
 
 class PinGateScreen extends StatefulWidget {
   const PinGateScreen({super.key});
@@ -13,58 +14,69 @@ class PinGateScreen extends StatefulWidget {
 class _PinGateScreenState extends State<PinGateScreen> {
   String enteredPin = '';
   bool isError = false;
-  final AuthService _authService = AuthService(); // Panggil AuthService
+  final AuthService _authService = AuthService();
+
+  // 🚨 J.A.R.V.I.S: Fungsi navigasi suci bersih
+  void _navigateToDashboard() {
+    // Kejutkan lintah awan
+    SyncService().syncFromFirebase();
+
+    // Bakar jambatan belakang!
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
+          (route) => false,
+    );
+  }
 
   void _onKeypadPressed(String value) async {
     setState(() {
       isError = false;
-
       if (value == 'back') {
-        if (enteredPin.isNotEmpty) {
-          enteredPin = enteredPin.substring(0, enteredPin.length - 1);
-        }
+        if (enteredPin.isNotEmpty) enteredPin = enteredPin.substring(0, enteredPin.length - 1);
       } else if (value == 'clear') {
         enteredPin = '';
       } else {
-        if (enteredPin.length < 4) {
-          enteredPin += value;
-        }
+        if (enteredPin.length < 4) enteredPin += value;
       }
     });
 
-    // Bila user dah taip 4 digit, kita Verify
+    // 🚨 J.A.R.V.I.S: Bila dah masuk 4 digit, kita run SILENT LOGIN
     if (enteredPin.length == 4) {
-      // 1. Tembak ke peti besi untuk check PIN
       bool isValid = await _authService.verifyPin(enteredPin);
 
       if (isValid) {
-        // 2. PIN BETUL! Lompat ke Dashboard
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
-          );
+        // 1. PIN betul! Sekarang kita pecah masuk Firebase secara senyap
+        bool loggedIn = await _authService.silentLogin();
+
+        if (loggedIn && mounted) {
+          // 2. Firebase dah kenal kita, terus masuk Dashboard!
+          _navigateToDashboard();
+        } else {
+          // Kalau PIN betul tapi Firebase reject (mungkin tukar password)
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Sesi tamat! Sila login guna e-mel semula.'), backgroundColor: Colors.orange),
+            );
+            Navigator.pop(context); // Suruh dia login manual balik
+          }
         }
       } else {
-        // 3. PIN SALAH! Kosongkan bulat-bulat, keluar amaran merah
+        // PIN salah!
         if (mounted) {
           setState(() {
             isError = true;
-            enteredPin = '';
+            enteredPin = ''; // Reset kotak
           });
         }
       }
     }
   }
 
-  // Fungsi Scan Jari
   void _handleBiometric() async {
     bool authenticated = await _authService.authenticateWithBiometrics();
     if (authenticated && mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
-      );
+      _navigateToDashboard();
     }
   }
 
@@ -86,7 +98,8 @@ class _PinGateScreenState extends State<PinGateScreen> {
             ),
             boxShadow: value == 'clear' || value == 'back' ? [] : [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                // 🚨 UBAT WARNING withOpacity
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               )
@@ -135,7 +148,8 @@ class _PinGateScreenState extends State<PinGateScreen> {
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
+                        // 🚨 UBAT WARNING withOpacity
+                        decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
                         child: const Icon(Icons.fingerprint, size: 40, color: AppTheme.primaryBlue),
                       ),
                       const SizedBox(height: 20),
@@ -181,7 +195,7 @@ class _PinGateScreenState extends State<PinGateScreen> {
                       const Spacer(),
 
                       TextButton.icon(
-                        onPressed: _handleBiometric, // Panggil logik biometrik
+                        onPressed: _handleBiometric,
                         icon: const Icon(Icons.fingerprint, color: AppTheme.primaryBlue),
                         label: const Text('Use Biometric Login', style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold, fontSize: 16)),
                       ),

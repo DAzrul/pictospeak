@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter/material.dart'; // 🚨 J.A.R.V.I.S: Wajib ada untuk 'debugPrint'
 
 class LocalDB {
   static Database? _database;
@@ -21,7 +22,7 @@ class LocalDB {
       path,
       version: 1,
       onCreate: (db, version) async {
-        print("J.A.R.V.I.S: Membina peti besi SQLite buat kali pertama...");
+        debugPrint("J.A.R.V.I.S: Membina peti besi SQLite buat kali pertama...");
         await db.execute('''
           CREATE TABLE $tableName (
             id TEXT PRIMARY KEY,
@@ -42,14 +43,14 @@ class LocalDB {
     await db.insert(
       tableName,
       {
-        'id': docId, // Guna ID dari Firebase supaya tak bertindih
+        'id': docId,
         'label_en': data['label_en'] ?? '',
         'label_ms': data['label_ms'] ?? '',
         'category': data['category'] ?? 'Others',
         'image_url': data['image_url'] ?? '',
         'ownerId': data['ownerId'] ?? 'GLOBAL',
       },
-      conflictAlgorithm: ConflictAlgorithm.replace, // Kalau data dah ada, dia update je
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
@@ -61,5 +62,16 @@ class LocalDB {
       where: 'category = ?',
       whereArgs: [category],
     );
+  }
+
+  // 🚨 J.A.R.V.I.S: Protocol Clean Slate (Nuclear Reset)
+  Future<void> deleteAllPictograms() async {
+    final db = await database;
+    try {
+      await db.delete(tableName); // Guna variable tableName lagi selamat
+      debugPrint("J.A.R.V.I.S: Database lokal telah dikosongkan. Licin gila babi!");
+    } catch (e) {
+      debugPrint("Error masa nak delete: $e");
+    }
   }
 }

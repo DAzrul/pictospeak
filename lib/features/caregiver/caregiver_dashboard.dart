@@ -17,9 +17,8 @@ class CaregiverDashboard extends StatefulWidget {
 
 class _CaregiverDashboardState extends State<CaregiverDashboard> {
   String _patientName = "Loading...";
-  int _selectedIndex = 0; // SUIS TAB KITA (0 = Analytics, 1 = Library)
+  int _selectedIndex = 0;
 
-  // Tajuk AppBar yang akan bertukar ikut tab
   final List<String> _appBarTitles = [
     'Caregiver Dashboard',
     'Pictogram Library',
@@ -52,11 +51,14 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
   void _handleSignOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
     if (context.mounted) {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const SplashScreen()), (route) => false);
+      Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const SplashScreen()),
+              (route) => false
+      );
     }
   }
 
-  // LOGIK TUKAR TAB KAT BAWAH NI
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -65,12 +67,12 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    // Senarai skrin yang akan disumbat dalam Body
-    final List<Widget> _pages = [
-      _buildAnalyticsTab(), // Tab 0
-      const LibraryScreen(), // Tab 1
-      const SecurityScreen(), //Tab 2
-      const SettingsScreen(), // Tab 3
+    // 🚨 J.A.R.V.I.S: Buang underscore kat depan '_pages' (Fix Warning)
+    final List<Widget> pages = [
+      _buildAnalyticsTab(),
+      const LibraryScreen(),
+      const SecurityScreen(),
+      const SettingsScreen(),
     ];
 
     return Scaffold(
@@ -78,55 +80,43 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textDark, size: 20),
+          onPressed: () {
+            // Kita "buang" semua skrin (termasuk Login) dan letak Splash sebagai skrin utama.
+            // Sesi Firebase kau TIDAK terjejas. Kau masih logged in secara senyap.
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const SplashScreen()),
+                  (route) => false, // Ini yang bunuh semua skrin kat belakang tu
+            );
+          },
+        ),
         title: Column(
           children: [
-            // Tajuk berubah ikut tab apa kau tekan
-            Text(_appBarTitles[_selectedIndex], style: const TextStyle(color: AppTheme.textDark, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 2),
-            // Nama patient hanya tunjuk kat tab Analytics
+            Text(_appBarTitles[_selectedIndex],
+                style: const TextStyle(color: AppTheme.textDark, fontSize: 16, fontWeight: FontWeight.bold)),
             if (_selectedIndex == 0)
-              Text('Patient: $_patientName', style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
+              Text('Patient: $_patientName',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500)),
           ],
         ),
         centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  title: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold)),
-                  content: const Text('Are you sure you want to securely log out from the dashboard?'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _handleSignOut(context);
-                      },
-                      child: const Text('Sign Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              );
-            },
+            onPressed: () => _showSignOutDialog(context),
           ),
           const SizedBox(width: 8),
         ],
       ),
-      // INI JANTUNG DIA: Body akan tukar ikut index yang dipilih
-      body: _pages[_selectedIndex],
-
+      body: pages[_selectedIndex], // Guna variable baru tanpa underscore
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
+        selectedItemColor: AppTheme.primaryBlue,
         unselectedItemColor: Colors.grey,
-        currentIndex: _selectedIndex, // Beritahu Nav bar mana satu tengah aktif
-        onTap: _onItemTapped,         // Panggil fungsi tukar tab bila ditekan
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.insights), label: 'Analytics'),
           BottomNavigationBarItem(icon: Icon(Icons.library_books_outlined), label: 'Library'),
@@ -137,7 +127,29 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     );
   }
 
-  // --- SEMUA BENDA GRAF MASUK SINI ---
+  void _showSignOutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to securely log out? This will end your active session.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            onPressed: () {
+              Navigator.pop(context);
+              _handleSignOut(context);
+            },
+            child: const Text('Sign Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- ANALYTICS TAB CONTENT ---
   Widget _buildAnalyticsTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -166,10 +178,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                   ],
                 ),
                 const SizedBox(height: 30),
-                SizedBox(
-                  height: 200,
-                  child: _buildBarChart(),
-                ),
+                SizedBox(height: 200, child: _buildBarChart()),
               ],
             ),
           ),
@@ -237,13 +246,16 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
             ],
           ),
           const SizedBox(height: 8),
-          Row(
-            children: words.map((w) => Container(
-              margin: const EdgeInsets.only(right: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-              child: Text(w, style: const TextStyle(fontSize: 12)),
-            )).toList(),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: words.map((w) => Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+                child: Text(w, style: const TextStyle(fontSize: 12)),
+              )).toList(),
+            ),
           ),
           const Divider(height: 24),
         ],
@@ -257,8 +269,9 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     if (status == 'urgent') color = Colors.orange;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-      child: Text(status, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+      // 🚨 J.A.R.V.I.S: Tukar ke withValues supaya Flutter 3.x tak bising (Fix Warning)
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+      child: Text(status.toUpperCase(), style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -266,23 +279,39 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: 24,
-        barTouchData: BarTouchData(enabled: false),
+        maxY: 25,
+        barTouchData: BarTouchData(enabled: true),
         titlesData: FlTitlesData(
           show: true,
-          bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (double value, TitleMeta meta) {
+                const style = TextStyle(color: Colors.grey, fontSize: 10);
+                String text;
+                switch (value.toInt()) {
+                  case 0: text = 'Water'; break;
+                  case 1: text = 'Food'; break;
+                  case 2: text = 'Toilet'; break;
+                  case 3: text = 'Home'; break;
+                  default: text = ''; break;
+                }
+                // 🚨 J.A.R.V.I.S: Tembak error fl_chart kat sini! Guna meta: meta
+                return SideTitleWidget(meta: meta, child: Text(text, style: style));
+              },
+            ),
+          ),
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 28)),
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
-        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
         barGroups: [
-          _barGroup(0, 24, Colors.blue),
+          _barGroup(0, 22, Colors.blue),
           _barGroup(1, 18, Colors.orange),
-          _barGroup(2, 15, Colors.green),
-          _barGroup(3, 12, Colors.purple),
-          _barGroup(4, 9, Colors.pink),
+          _barGroup(2, 14, Colors.green),
+          _barGroup(3, 10, Colors.purple),
         ],
       ),
     );
@@ -292,7 +321,12 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     return BarChartGroupData(
       x: x,
       barRods: [
-        BarChartRodData(toY: y, color: color, width: 22, borderRadius: BorderRadius.circular(4)),
+        BarChartRodData(
+          toY: y,
+          color: color,
+          width: 18,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+        ),
       ],
     );
   }

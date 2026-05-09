@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/tts_service.dart'; // 🚨 J.A.R.V.I.S: Import mulut AI kat sini!
+import '../auth/splash_screen.dart';
 import 'mood_selection_screen.dart';
 import 'svo_builder_screen.dart';
 
@@ -20,8 +21,13 @@ class QuickNeedsScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.home_outlined, color: Colors.black87, size: 28),
           onPressed: () {
-            _ttsService.stop(); // Berhenti cakap kalau user keluar skrin
-            Navigator.pop(context);
+            _ttsService.stop();
+            // 🚨 J.A.R.V.I.S: JANGAN POP! Jambatan dah kena bakar.
+            // Kita hantar balik ke Splash secara replacement.
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const SplashScreen()),
+            );
           },
         ),
         title: const Column(

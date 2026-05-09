@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_theme.dart';
-import 'services/auth_service.dart';
+import '../../core/services/sync_service.dart'; // 🚨 J.A.R.V.I.S: Kejutkan lintah kat sini
+import '../caregiver/caregiver_dashboard.dart';
 import 'login_screen.dart';
-import '../patient/quick_needs_screen.dart'; // <--- Wajib import ni sial!
+import '../patient/quick_needs_screen.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -22,24 +23,32 @@ class SplashScreen extends StatelessWidget {
               child: IconButton(
                 icon: const Icon(Icons.settings_outlined, color: Colors.grey, size: 28),
                 onPressed: () {
-                  // TAK PAYAH CHECK SESSION KAT SINI.
-                  // Terus hantar ke Login Screen. Logik PIN/Biometrik kita buat kat sana.
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  );
+                  // 🚨 J.A.R.V.I.S: Check pintu dulu!
+                  // Kalau FirebaseAuth ada data currentUser, maksudnya belum logout.
+                  if (FirebaseAuth.instance.currentUser != null) {
+                    // Terus masuk Dashboard, tak payah login
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
+                    );
+                  } else {
+                    // Kalau takde, baru hantar ke skrin Login
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    );
+                  }
                 },
               ),
             ),
 
-            // --- ISI KANDUNGAN UTAMA (Pesakit) ---
             Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo PictoSpeak
+                    // Logo PictoSpeak (Kekalkan UI lawa kau)
                     Container(
                       height: 180,
                       width: 180,
@@ -47,7 +56,7 @@ class SplashScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(40),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryBlue.withOpacity(0.3),
+                            color: AppTheme.primaryBlue.withValues(alpha: 0.3), // 🚨 Pakai withValues
                             blurRadius: 20,
                             offset: const Offset(0, 10),
                           ),
@@ -58,6 +67,8 @@ class SplashScreen extends StatelessWidget {
                         child: Image.asset(
                           'assets/images/pictospeak.png',
                           fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
                         ),
                       ),
                     ),
@@ -65,11 +76,7 @@ class SplashScreen extends StatelessWidget {
 
                     const Text(
                       'PictoSpeak',
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textDark,
-                      ),
+                      style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: AppTheme.textDark),
                     ),
                     const SizedBox(height: 8),
 
@@ -77,27 +84,23 @@ class SplashScreen extends StatelessWidget {
                       'Communication Made Simple',
                       style: TextStyle(fontSize: 18, color: Colors.blueGrey[600]),
                     ),
-                    const SizedBox(height: 32),
-
-                    Text(
-                      'Empowering non-verbal individuals to\nexpress themselves through intuitive\npicture-based communication',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.blueGrey[400],
-                        height: 1.5,
-                      ),
-                    ),
                     const SizedBox(height: 48),
 
-                    // BUTANG GERGASI PESAKIT (Tanpa Sekuriti)
+                    // BUTANG GERGASI PESAKIT
                     SizedBox(
                       width: double.infinity,
                       height: 60,
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          // LOMPAT KE SKRIN QUICK NEEDS KITA TADI!
-                          Navigator.push(
+                          // 🚨 1. KEJUTKAN LINTAH AWAN
+                          // Walaupun user 'tak login' secara manual, Firebase Auth
+                          // selalunya simpan session Caregiver yang lepas.
+                          SyncService().syncFromFirebase();
+
+                          // 🚨 2. GUNA pushReplacement
+                          // Ini ubat supaya bila budak tu dah masuk QuickNeeds,
+                          // dia tak boleh 'back' balik ke skrin Splash ni.
+                          Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(builder: (context) => QuickNeedsScreen()),
                           );
@@ -107,7 +110,11 @@ class SplashScreen extends StatelessWidget {
                           "Let's Communicate",
                           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                         ),
-                        style: AppTheme.lightTheme.elevatedButtonTheme.style,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryBlue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -121,28 +128,21 @@ class SplashScreen extends StatelessWidget {
               ),
             ),
 
-            // --- FOOTER PEMATUEM ---
+            // Footer (Kekalkan PDPA kau tu, nampak legit sikit PSM)
             Positioned(
               bottom: 24,
               left: 0,
               right: 0,
               child: Column(
                 children: [
-                  Text(
-                    'Version 1.0.3',
-                    style: TextStyle(fontSize: 12, color: Colors.blueGrey[300]),
-                    textAlign: TextAlign.center,
-                  ),
+                  Text('Version 1.0.7', style: TextStyle(fontSize: 12, color: Colors.blueGrey[300])),
                   const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.shield_outlined, size: 14, color: Colors.blueGrey[300]),
                       const SizedBox(width: 4),
-                      Text(
-                        'PDPA Compliant  |  AAC Certified',
-                        style: TextStyle(fontSize: 12, color: Colors.blueGrey[300]),
-                      ),
+                      Text('PDPA Compliant  |  AAC Certified', style: TextStyle(fontSize: 12, color: Colors.blueGrey[300])),
                     ],
                   ),
                 ],

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
-import '../../core/services/local_db.dart';
-import '../../core/services/prediction_service.dart';
-import '../../core/services/tts_service.dart';
-import '../../core/services/ai_icon_service.dart';
-import '../../core/models/pictogram_model.dart';
-import '../../core/theme/app_theme.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+// 🚨 J.A.R.V.I.S: Guna package import supaya tak sesat jalan
+import 'package:pictospeak/core/services/local_db.dart';
+import 'package:pictospeak/core/services/prediction_service.dart';
+import 'package:pictospeak/core/services/tts_service.dart';
+import 'package:pictospeak/core/services/ai_icon_service.dart';
+import 'package:pictospeak/core/services/sync_service.dart';
+import 'package:pictospeak/core/models/pictogram_model.dart';
+import 'package:pictospeak/core/theme/app_theme.dart';
+
 class SvoBuilderScreen extends StatefulWidget {
+  // 🚨 J.A.R.V.I.S: Dah repair constructor kat bawah ni. Takde lagi 'super.override' merapu tu.
   const SvoBuilderScreen({super.key});
 
   @override
@@ -22,9 +26,18 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
 
   List<Pictogram> selectedSentence = [];
   List<String> dynamicSuggestions = [];
-
   String _activeCategory = 'Subject';
 
+  @override
+  void initState() {
+    super.initState();
+    SyncService().syncFromFirebase().then((_) {
+      if (mounted) setState(() {});
+    });
+    _updateSuggestions();
+  }
+
+  // --- LOGIK RENDER ICON (FIXED DECIMAL VERSION) ---
   dynamic _mapAiStringToIcon(String aiResult) {
     switch (aiResult.toLowerCase().trim()) {
       case 'cat': return FontAwesomeIcons.cat;
@@ -98,28 +111,23 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
   }
 
   dynamic _getIconFromPic(Pictogram pic) {
-    int? savedCodePoint = int.tryParse(pic.imageUrl);
-    if (savedCodePoint != null) {
-      return IconData(savedCodePoint, fontFamily: 'MaterialIcons');
+    int? codePoint = int.tryParse(pic.imageUrl);
+    if (codePoint != null) {
+      return IconData(codePoint, fontFamily: 'MaterialIcons');
     }
     return _mapAiStringToIcon(_aiService.checkOfflineDictionary(pic.labelEn.toLowerCase()));
   }
 
   Widget _renderSmartIcon(dynamic iconData, double size, Color color) {
     try {
-      if (iconData.runtimeType.toString().contains('FaIconData')) {
+      if (iconData is IconData) {
+        return Icon(iconData, size: size, color: color);
+      } else {
         return FaIcon(iconData, size: size, color: color);
       }
-      return Icon(iconData as IconData, size: size, color: color);
     } catch (e) {
       return Icon(Icons.broken_image, size: size, color: color);
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _updateSuggestions();
   }
 
   void _updateSuggestions() async {
@@ -128,13 +136,16 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
       currentWord = "${selectedSentence.last.labelEn} / ${selectedSentence.last.labelMs}";
     }
     List<String> suggestions = await _predictionService.getSuggestions(currentWord, _activeCategory);
-    setState(() => dynamicSuggestions = suggestions);
+    if (mounted) setState(() => dynamicSuggestions = suggestions);
   }
 
   void _triggerSOS(BuildContext context) async {
     const String sosEn = "Help me, please call my caregiver!";
     const String sosMs = "Tolong saya, sila panggil penjaga saya!";
     await _ttsService.speak(sosEn, lang: "en-US");
+
+    // 🚨 J.A.R.V.I.S: Repair 'async gap'. Check mounted dulu sebelum guna context.
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('🚨 SOS: $sosMs'), backgroundColor: Colors.red[900], behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 4)),
@@ -144,11 +155,8 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
   void _handleWordSelection(Pictogram pic) {
     setState(() {
       selectedSentence.add(pic);
-      if (_activeCategory == 'Subject') {
-        _activeCategory = 'Verb';
-      } else if (_activeCategory == 'Verb') {
-        _activeCategory = 'Object';
-      }
+      if (_activeCategory == 'Subject') _activeCategory = 'Verb';
+      else if (_activeCategory == 'Verb') _activeCategory = 'Object';
     });
     _updateSuggestions();
   }
@@ -180,7 +188,6 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              // 🚨 FUTURE BUILDER YANG SUCI BERSIH
               child: FutureBuilder<List<Map<String, dynamic>>>(
                 future: _localDB.getPictogramsByCategory(_activeCategory),
                 builder: (context, snapshot) {
@@ -193,20 +200,20 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
                   if (dataList.isEmpty) {
                     return Center(
                         child: Text(
-                            "Tiada data untuk kategori $_activeCategory.\nSila pastikan anda login untuk sync data.",
+                            "Tiada data untuk kategori $_activeCategory.\nSila pastikan data telah di-sync.",
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.grey.shade400)
                         )
                     );
                   }
 
-                  // 🚨 J.A.R.V.I.S: Convert dari Map (SQLite) jadi Object Pictogram siap ada createdAt!
                   final pictograms = dataList.map((map) => Pictogram(
                     id: map['id'] ?? '',
                     labelEn: map['label_en'] ?? '',
                     labelMs: map['label_ms'] ?? '',
                     category: map['category'] ?? 'Others',
                     imageUrl: map['image_url'] ?? '',
+                    ownerId: map['ownerId'] ?? 'GLOBAL',
                     createdAt: DateTime.now(),
                   )).toList();
 
@@ -215,10 +222,7 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
                       crossAxisCount: 3, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.8,
                     ),
                     itemCount: pictograms.length,
-                    itemBuilder: (context, index) {
-                      final pic = pictograms[index];
-                      return _buildLargeIconButton(pic);
-                    },
+                    itemBuilder: (context, index) => _buildLargeIconButton(pictograms[index]),
                   );
                 },
               ),
@@ -250,18 +254,10 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
                   color: isActive ? AppTheme.primaryBlue : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: isActive ? AppTheme.primaryBlue : Colors.grey.shade300),
-                  // 🚨 UBAT WARNING withOpacity -> withValues
                   boxShadow: isActive ? [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
                 ),
                 child: Center(
-                  child: Text(
-                    cat,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: isActive ? Colors.white : Colors.grey.shade600,
-                    ),
-                  ),
+                  child: Text(cat, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isActive ? Colors.white : Colors.grey.shade600)),
                 ),
               ),
             );
@@ -273,7 +269,6 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
 
   Widget _buildLegoSvoDisplay() {
     int totalBoxes = selectedSentence.length >= 3 ? selectedSentence.length + 1 : 3;
-
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
@@ -289,39 +284,21 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
                     bool isLast = index == totalBoxes - 1;
                     bool isFilled = index < selectedSentence.length;
                     bool isActive = index == selectedSentence.length;
-
                     String title = index == 0 ? 'Subject' : index == 1 ? 'Verb' : index == 2 ? 'Object' : '...';
                     String? val = isFilled ? selectedSentence[index].labelEn.split(' / ')[0] : null;
 
-                    Color boxColor;
-                    Color textColor;
-
-                    if (isActive) {
-                      boxColor = AppTheme.primaryBlue;
-                      textColor = Colors.white;
-                    } else if (isFilled) {
-                      boxColor = Colors.blue.shade100;
-                      textColor = AppTheme.primaryBlue;
-                    } else {
-                      boxColor = Colors.grey.shade300;
-                      textColor = Colors.grey.shade600;
-                    }
+                    Color boxColor = isActive ? AppTheme.primaryBlue : (isFilled ? Colors.blue.shade100 : Colors.grey.shade300);
+                    Color textColor = isActive ? Colors.white : (isFilled ? AppTheme.primaryBlue : Colors.grey.shade600);
 
                     return Transform.translate(
                       offset: Offset(isFirst ? 0 : index * -15.0, 0),
                       child: ClipPath(
                         clipper: PuzzleClipper(isFirst: isFirst, isLast: isLast),
                         child: Container(
-                          width: 100,
-                          height: 85,
-                          color: boxColor,
-                          padding: EdgeInsets.only(
-                            left: isFirst ? 10 : 25,
-                            right: isLast ? 10 : 25,
-                          ),
+                          width: 100, height: 85, color: boxColor,
                           child: Center(
                             child: val != null
-                                ? Text(val, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 13), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis)
+                                ? Text(val, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 13), textAlign: TextAlign.center, maxLines: 2)
                                 : Text(title, style: TextStyle(fontSize: 11, color: textColor)),
                           ),
                         ),
@@ -342,220 +319,115 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Material(
-        elevation: 4,
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.orange[800],
+        elevation: 4, borderRadius: BorderRadius.circular(12), color: Colors.orange[800],
         child: InkWell(
           onTap: () => _triggerSOS(context),
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
-                SizedBox(width: 10),
-                Text('SOS / Call Caregiver', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-              ],
-            ),
+            width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
+              SizedBox(width: 10),
+              Text('SOS / Call Caregiver', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            ]),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildUndoButton() {
-    return IconButton(
-      onPressed: () {
-        if (selectedSentence.isNotEmpty) {
-          setState(() {
-            selectedSentence.removeLast();
-            if (selectedSentence.isEmpty) {
-              _activeCategory = 'Subject';
-            } else if (selectedSentence.length == 1) {
-              _activeCategory = 'Verb';
-            } else {
-              _activeCategory = 'Object';
-            }
-          });
-          _updateSuggestions();
-        }
-      },
-      icon: const Icon(Icons.undo_rounded, color: Colors.grey),
-    );
-  }
+  Widget _buildUndoButton() => IconButton(
+    onPressed: () {
+      if (selectedSentence.isNotEmpty) {
+        setState(() {
+          selectedSentence.removeLast();
+          if (selectedSentence.isEmpty) _activeCategory = 'Subject';
+          else if (selectedSentence.length == 1) _activeCategory = 'Verb';
+          else _activeCategory = 'Object';
+        });
+        _updateSuggestions();
+      }
+    },
+    icon: const Icon(Icons.undo_rounded, color: Colors.grey),
+  );
 
-  Widget _buildSuggestedWordsBar() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      // 🚨 UBAT WARNING
-      color: Colors.blue.withValues(alpha: 0.05),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('SUGGESTED WORDS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: dynamicSuggestions.isEmpty
-                  ? [const Text("Tiada cadangan...", style: TextStyle(fontSize: 12, color: Colors.grey))]
-                  : dynamicSuggestions.map((label) => _buildSuggestChip(label)).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSuggestChip(String label) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        // 🚨 UBAT WARNING
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
-      ),
+  Widget _buildSuggestedWordsBar() => Container(
+    width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    color: Colors.blue.withValues(alpha: 0.05),
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
-        children: [
-          _renderSmartIcon(_mapAiStringToIcon(_aiService.checkOfflineDictionary(label.split(' / ')[0].toLowerCase())), 16, AppTheme.primaryBlue),
-          const SizedBox(width: 6),
-          Text(label.split(' / ')[0], style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue)),
-        ],
+        children: dynamicSuggestions.isEmpty
+            ? [const Text("Tiada cadangan...", style: TextStyle(fontSize: 12, color: Colors.grey))]
+            : dynamicSuggestions.map((label) => _buildSuggestChip(label)).toList(),
       ),
-    );
-  }
+    ),
+  );
 
-  Widget _buildLargeIconButton(Pictogram pic) {
-    return InkWell(
-      onTap: () => _handleWordSelection(pic),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          // 🚨 UBAT WARNING
-          border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+  Widget _buildSuggestChip(String label) => Container(
+    margin: const EdgeInsets.only(right: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.withValues(alpha: 0.2))),
+    child: Text(label.split(' / ')[0], style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue)),
+  );
+
+  Widget _buildLargeIconButton(Pictogram pic) => InkWell(
+    onTap: () => _handleWordSelection(pic),
+    child: Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withValues(alpha: 0.1))),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        _renderSmartIcon(_getIconFromPic(pic), 40, AppTheme.primaryBlue),
+        const SizedBox(height: 12),
+        Text(pic.labelEn.split(' / ')[0], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        Text(pic.labelMs.split(' / ')[0], style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+      ]),
+    ),
+  );
+
+  Widget _buildSpeakButton() => Container(
+    padding: const EdgeInsets.all(20), color: Colors.white,
+    child: Column(children: [
+      SizedBox(
+        width: double.infinity, height: 60,
+        child: ElevatedButton.icon(
+          onPressed: selectedSentence.isEmpty ? null : () async {
+            String sentenceEn = selectedSentence.map((pic) => pic.labelEn.split(' / ')[0]).join(" ");
+            await _ttsService.speak(sentenceEn, lang: "en-US");
+          },
+          icon: const Icon(Icons.volume_up, color: Colors.white),
+          label: const Text('Speak', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _renderSmartIcon(_getIconFromPic(pic), 40, AppTheme.primaryBlue),
-            const SizedBox(height: 12),
-            Text(pic.labelEn.split(' / ')[0], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.center),
-            Text(pic.labelMs.split(' / ')[0], style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-          ],
-        ),
       ),
-    );
-  }
-
-  Widget _buildSpeakButton() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      color: Colors.white,
-      child: Column(
-        children: [
-          SizedBox(
-            width: double.infinity,
-            height: 60,
-            child: ElevatedButton.icon(
-              onPressed: selectedSentence.isEmpty ? null : () async {
-                String sentenceEn = selectedSentence.map((pic) => pic.labelEn.split(' / ')[0]).join(" ");
-                await _ttsService.speak(sentenceEn, lang: "en-US");
-
-                if (selectedSentence.length >= 2) {
-                  await _predictionService.logUsage(
-                      selectedSentence[0].labelEn,
-                      selectedSentence[1].labelEn,
-                      selectedSentence.length >= 3 ? selectedSentence[2].labelEn : "null"
-                  );
-                }
-              },
-              icon: const Icon(Icons.volume_up, color: Colors.white),
-              label: const Text('Speak', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryBlue,
-                disabledBackgroundColor: Colors.grey[300],
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              _ttsService.stop();
-              setState(() {
-                selectedSentence.clear();
-                _activeCategory = 'Subject';
-                _updateSuggestions();
-              });
-            },
-            child: const Text('Clear sentence', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          ),
-        ],
-      ),
-    );
-  }
+      TextButton(onPressed: () => setState(() { selectedSentence.clear(); _activeCategory = 'Subject'; _updateSuggestions(); }), child: const Text('Clear sentence', style: TextStyle(color: Colors.grey, fontSize: 12))),
+    ]),
+  );
 }
 
-// ----------------------------------------------------------------------
-// 🚨 J.A.R.V.I.S: MESIN PEMOTONG KOTAK PUZZLE (CUSTOM CLIPPER)
-// ----------------------------------------------------------------------
 class PuzzleClipper extends CustomClipper<Path> {
-  final bool isFirst;
-  final bool isLast;
-
+  final bool isFirst; final bool isLast;
   PuzzleClipper({this.isFirst = false, this.isLast = false});
-
   @override
   Path getClip(Size size) {
     final path = Path();
-    final double tabWidth = 15.0; // Panjang kepala puzzle
-    final double tabHeight = 25.0; // Lebar/bulat kepala puzzle
-    final double radius = 8.0; // Tepi kotak bagi membulat sikit
-
+    final double tabWidth = 15.0; final double tabHeight = 25.0; final double radius = 8.0;
     path.moveTo(radius, 0);
-
     path.lineTo(size.width - (isLast ? 0 : tabWidth) - radius, 0);
     path.arcToPoint(Offset(size.width - (isLast ? 0 : tabWidth), radius), radius: Radius.circular(radius));
-
     if (!isLast) {
       path.lineTo(size.width - tabWidth, (size.height / 2) - (tabHeight / 2));
-      path.arcToPoint(
-        Offset(size.width - tabWidth, (size.height / 2) + (tabHeight / 2)),
-        radius: Radius.circular(tabHeight / 2),
-        clockwise: true,
-      );
+      path.arcToPoint(Offset(size.width - tabWidth, (size.height / 2) + (tabHeight / 2)), radius: Radius.circular(tabHeight / 2), clockwise: true);
       path.lineTo(size.width - tabWidth, size.height - radius);
-    } else {
-      path.lineTo(size.width, size.height - radius);
-    }
-
+    } else { path.lineTo(size.width, size.height - radius); }
     path.arcToPoint(Offset(size.width - (isLast ? 0 : tabWidth) - radius, size.height), radius: Radius.circular(radius));
-
     path.lineTo(radius, size.height);
     path.arcToPoint(Offset(0, size.height - radius), radius: Radius.circular(radius));
-
     if (!isFirst) {
       path.lineTo(0, (size.height / 2) + (tabHeight / 2));
-      path.arcToPoint(
-        Offset(0, (size.height / 2) - (tabHeight / 2)),
-        radius: Radius.circular(tabHeight / 2),
-        clockwise: false,
-      );
+      path.arcToPoint(Offset(0, (size.height / 2) - (tabHeight / 2)), radius: Radius.circular(tabHeight / 2), clockwise: false);
       path.lineTo(0, radius);
-    } else {
-      path.lineTo(0, radius);
-    }
-
-    path.close();
-    return path;
+    } else { path.lineTo(0, radius); }
+    path.close(); return path;
   }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => true;
+  @override bool shouldReclip(CustomClipper<Path> oldClipper) => true;
 }

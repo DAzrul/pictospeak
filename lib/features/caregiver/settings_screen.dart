@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
-import '../../features/auth/pin_setup_screen.dart'; // Import untuk tukar PIN
+// 🚨 J.A.R.V.I.S: Tukar import ke fail baru ni
+import '../../features/auth/change_pin_screen.dart';
+import '../caregiver/edit_profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -30,7 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // 1. ACCOUNT MANAGEMENT (Wajib ada!)
+          // 1. ACCOUNT MANAGEMENT
           _buildSectionHeader(Icons.manage_accounts_outlined, 'Account Management', 'Update your profile and security settings'),
           const SizedBox(height: 12),
           Container(
@@ -39,18 +41,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 _buildListTile('Edit Patient Profile', 'Change name, age, or relationship', Icons.edit_note_rounded, () {
-                  print("Buka skrin edit profil");
+                  // 🚨 J.A.R.V.I.S: Tembak terus ke skrin Edit Profile
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen()));
                 }),
                 const Divider(height: 1),
                 _buildListTile('Change Security PIN', 'Update your 4-digit access code', Icons.lock_reset_rounded, () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PinSetupScreen()));
+                  // 🚨 J.A.R.V.I.S: Halakan ke skrin khas Tukar PIN
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ChangePinScreen()));
                 }),
               ],
             ),
           ),
           const SizedBox(height: 24),
 
-          // 2. VISUAL & SENSORY (Autism-Specific)
+          // 2. VISUAL & SENSORY
           _buildSectionHeader(Icons.visibility_outlined, 'Visual & Sensory', 'Adjust app appearance for sensory needs'),
           const SizedBox(height: 12),
           Container(
@@ -80,7 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 3. TTS ENGINE (Existing)
+          // 3. TTS ENGINE
           _buildSectionHeader(Icons.record_voice_over_outlined, 'TTS Engine', 'Configure text-to-speech voice settings'),
           const SizedBox(height: 12),
           Container(
@@ -96,7 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 4. MOTOR ACCESSIBILITY (Existing)
+          // 4. MOTOR ACCESSIBILITY
           _buildSectionHeader(Icons.accessibility_new, 'Motor Accessibility', 'Settings for users with motor impairments'),
           const SizedBox(height: 12),
           Container(
@@ -117,7 +121,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 32),
 
-          // 5. DATA MANAGEMENT (Bakal butang bahaya)
+          // 5. DATA MANAGEMENT
           _buildSectionHeader(Icons.data_usage_rounded, 'Data Management', 'Control your application data and logs'),
           const SizedBox(height: 12),
           SizedBox(
@@ -139,7 +143,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Helper untuk List Tile Profile/PIN
   Widget _buildListTile(String title, String sub, IconData icon, VoidCallback onTap) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -151,7 +154,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Dialog Pengesahan 3 Lapis (Sebab kau kata nak tebal kan?)
   void _showWipeDataDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -173,7 +175,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Helper sedia ada (Header & Slider)
   Widget _buildSectionHeader(IconData icon, String title, String subtitle) {
     return Row(children: [
       Icon(icon, color: AppTheme.primaryBlue, size: 20),

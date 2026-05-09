@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/database_service.dart';
 import '../../core/services/ai_icon_service.dart';
+import '../../core/services/local_db.dart'; // 🚨 J.A.R.V.I.S: Import Stor Lokal
+import '../../core/services/sync_service.dart'; // 🚨 J.A.R.V.I.S: Import Lintah Sync
 import '../../core/models/pictogram_model.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -20,13 +22,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   final DatabaseService _dbService = DatabaseService();
   final AiIconService _aiService = AiIconService();
+  final LocalDB _localDB = LocalDB(); // 🚨 J.A.R.V.I.S: Init Stor Lokal
 
   String _selectedCategory = 'Subject';
   bool _isLoading = false;
   bool _isAiThinking = false;
+  bool _shareWithCommunity = false;
   Timer? _debounce;
 
-  IconData _dynamicIcon = Icons.image_search;
+  dynamic _dynamicIcon = Icons.image_search;
   Color _dynamicColor = Colors.grey;
 
   @override
@@ -38,25 +42,61 @@ class _LibraryScreenState extends State<LibraryScreen> {
     super.dispose();
   }
 
-  // --- HELPER UNTUK TUKAR STRING JADI ICON (MIX MATERIAL + FONT AWESOME) ---
-  IconData _mapAiStringToIcon(String aiResult) {
-    switch (aiResult.toLowerCase().trim()) {
-    // Font Awesome Icons (Kena paksa guna 'as IconData')
-      case 'cat': return FontAwesomeIcons.cat as IconData;
-      case 'dog': return FontAwesomeIcons.dog as IconData;
-      case 'fish': return FontAwesomeIcons.fish as IconData;
-      case 'bird': return FontAwesomeIcons.crow as IconData;
-      case 'burger': return FontAwesomeIcons.burger as IconData;
-      case 'apple': return FontAwesomeIcons.apple as IconData;
-      case 'brain': return FontAwesomeIcons.brain as IconData;
-      case 'tooth': return FontAwesomeIcons.tooth as IconData;
-      case 'ghost': return FontAwesomeIcons.ghost as IconData;
-      case 'gift': return FontAwesomeIcons.gift as IconData;
-      case 'heart': return FontAwesomeIcons.solidHeart as IconData;
-      case 'poop': return FontAwesomeIcons.poop as IconData;
-      case 'wheelchair': return FontAwesomeIcons.wheelchair as IconData;
+  // 🚨 J.A.R.V.I.S: PROTOCOL CLEAN SLATE (NUCLEAR RESET)
+  void _forceResetProtocol(BuildContext context) async {
+    bool confirm = await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Protocol Clean Slate?'),
+        content: const Text('Benda ni akan padam SEMUA data lokal dan sedut balik dari Firebase. Confirm ke Boss?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Tak Jadi')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Jalan!', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+          ),
+        ],
+      ),
+    ) ?? false;
 
-    // Material Icons (Biar je macam biasa)
+    if (!confirm) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Padam SQLite
+      await _localDB.deleteAllPictograms();
+
+      // 2. Sedut data baru dari Firebase
+      await SyncService().syncFromFirebase();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reset Berjaya! Data suci telah dikembalikan.'), backgroundColor: Colors.blue),
+        );
+      }
+    } catch (e) {
+      debugPrint("Reset Gagal: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  dynamic _mapAiStringToIcon(String aiResult) {
+    switch (aiResult.toLowerCase().trim()) {
+      case 'cat': return FontAwesomeIcons.cat;
+      case 'dog': return FontAwesomeIcons.dog;
+      case 'fish': return FontAwesomeIcons.fish;
+      case 'bird': return FontAwesomeIcons.crow;
+      case 'burger': return FontAwesomeIcons.burger;
+      case 'apple': return FontAwesomeIcons.apple;
+      case 'brain': return FontAwesomeIcons.brain;
+      case 'tooth': return FontAwesomeIcons.tooth;
+      case 'ghost': return FontAwesomeIcons.ghost;
+      case 'gift': return FontAwesomeIcons.gift;
+      case 'heart': return FontAwesomeIcons.solidHeart;
+      case 'poop': return FontAwesomeIcons.poop;
+      case 'wheelchair': return FontAwesomeIcons.wheelchair;
       case 'woman': return Icons.woman;
       case 'man': return Icons.man;
       case 'baby': return Icons.child_care;
@@ -114,16 +154,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  // --- HELPER PINTAR (FALLBACK KETIKA DATA ROSAK) ---
-  IconData _getSpecificIcon(String text) {
-    // Kita panggil checkOfflineDictionary (dah buang underscore)
-    return _mapAiStringToIcon(_aiService.checkOfflineDictionary(text.toLowerCase()));
+  Widget _renderIcon(dynamic iconData, {double size = 40, Color? color}) {
+    if (iconData is IconData) {
+      return Icon(iconData, size: size, color: color);
+    } else {
+      return FaIcon(iconData, size: size, color: color);
+    }
   }
 
-  // --- ENJIN HYBRID YANG DAH DIBERSIHKAN (CLEAN) ---
   void _autoGenerateIcon(String text) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-
     if (text.trim().isEmpty) {
       setState(() {
         _dynamicIcon = Icons.image_search;
@@ -133,29 +173,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
       return;
     }
 
-    // Tunjuk efek AI tengah fikir
     setState(() {
       _isAiThinking = true;
       _dynamicIcon = Icons.more_horiz;
       _dynamicColor = AppTheme.primaryBlue;
     });
 
-    // Lepas 0.8 saat user stop menaip, baru panggil AI Service
     _debounce = Timer(const Duration(milliseconds: 800), () async {
-      // AI Service akan buat semua kerja (Offline check -> Cache check -> Groq API)
       String aiResult = await _aiService.getRecommendedIcon(text);
       if (!mounted) return;
 
       setState(() {
         _isAiThinking = false;
         _dynamicIcon = _mapAiStringToIcon(aiResult);
-
-        // Auto-tukar warna ikut logik sikit
-        if (['Object', 'Subject', 'Verb'].contains(_selectedCategory)) {
-          _dynamicColor = _getCategoryColor(_selectedCategory);
-        } else {
-          _dynamicColor = Colors.green; // Default
-        }
+        _dynamicColor = _getCategoryColor(_selectedCategory);
       });
     });
   }
@@ -175,34 +206,39 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _labelEnController.text.trim(),
         _labelMsController.text.trim(),
         _selectedCategory,
-        _dynamicIcon.codePoint.toString(), // Save DNA
+        _dynamicIcon is IconData
+            ? _dynamicIcon.codePoint.toString()
+            : _labelEnController.text.toLowerCase().trim(),
+        isPublic: _shareWithCommunity,
       );
 
       _labelEnController.clear();
       _labelMsController.clear();
-      _tagController.clear();
+
       setState(() {
         _dynamicIcon = Icons.image_search;
         _dynamicColor = Colors.grey;
         _selectedCategory = 'Subject';
+        _shareWithCommunity = false;
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Pictogram Added to Firebase!'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Berjaya ditambah! Sila refresh atau tunggu auto-sync.'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       debugPrint("Error: $e");
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Color _getCategoryColor(String category) {
     if (category == 'Subject') return Colors.blue;
     if (category == 'Verb') return Colors.orange;
-    return Colors.green;
+    if (category == 'Object') return Colors.green;
+    return Colors.purple;
   }
 
   @override
@@ -212,7 +248,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Add Local Context Pictogram',
+          const Text('Add Pictogram Context',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
           const SizedBox(height: 16),
 
@@ -221,7 +257,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200)
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.2))
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,13 +285,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           ),
                           child: _isAiThinking
                               ? const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator())
-                              : Icon(_dynamicIcon, color: _dynamicColor, size: 40)
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                          _isAiThinking ? 'AI is thinking...' :
-                          _labelEnController.text.isEmpty ? 'Type below to generate icon...' : 'Auto-generated Icon',
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontStyle: FontStyle.italic)
+                              : _renderIcon(_dynamicIcon, color: _dynamicColor)
                       ),
                     ],
                   ),
@@ -268,7 +298,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     controller: _labelEnController,
                     onChanged: (text) => _autoGenerateIcon(text),
                     decoration: InputDecoration(
-                        hintText: 'English (e.g. Toilet)',
+                        hintText: 'English (e.g. Cat)',
                         isDense: true,
                         prefixIcon: const Icon(Icons.language, size: 18),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))
@@ -278,7 +308,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 TextField(
                     controller: _labelMsController,
                     decoration: InputDecoration(
-                        hintText: 'Bahasa Melayu (e.g. Tandas)',
+                        hintText: 'Bahasa Melayu (e.g. Kucing)',
                         isDense: true,
                         prefixIcon: const Icon(Icons.translate, size: 18),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))
@@ -289,9 +319,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 const Text('3. Category', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 const SizedBox(height: 4),
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedCategory,
+                  value: _selectedCategory,
                   decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                  // 🚨 J.A.R.V.I.S: Update senarai ni sama macam kat SVO Builder
                   items: ['Subject', 'Verb', 'Object', 'Adjective', 'Others'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                   onChanged: (val) {
                     setState(() {
@@ -302,11 +331,24 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                const Text('4. Predictive Tagging', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 4),
-                TextField(
-                    controller: _tagController,
-                    decoration: InputDecoration(hintText: 'Spicy, Sambal', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))
+                const Text('4. Community Sharing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: _shareWithCommunity ? Colors.green.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _shareWithCommunity ? Colors.green.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2))
+                  ),
+                  child: SwitchListTile(
+                    title: const Text('Share with Community?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    subtitle: const Text('Admin will review this for everyone to use.', style: TextStyle(fontSize: 11)),
+                    secondary: Icon(_shareWithCommunity ? Icons.public : Icons.public_off, color: _shareWithCommunity ? Colors.green : Colors.grey),
+                    value: _shareWithCommunity,
+                    activeThumbColor: Colors.green,
+                    onChanged: (val) => setState(() => _shareWithCommunity = val),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
                 const SizedBox(height: 24),
 
@@ -315,12 +357,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _addPictogramToFirebase,
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryBlue,
+                        backgroundColor: _shareWithCommunity ? Colors.green : AppTheme.primaryBlue,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
                     ),
                     child: _isLoading
                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('Add Pictogram to Library', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        : Text(_shareWithCommunity ? 'Submit to Community' : 'Add to Private Library',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 )
               ],
@@ -328,7 +371,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
           const SizedBox(height: 32),
 
-          const Text('Existing Pictograms', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
+          // 🚨 J.A.R.V.I.S: Bahagian ni dah dipasang butang RESET
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('My Pictograms', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
+              TextButton.icon(
+                onPressed: _isLoading ? null : () => _forceResetProtocol(context),
+                icon: const Icon(Icons.history_sharp, size: 16, color: Colors.redAccent),
+                label: const Text('Force Sync', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
 
           StreamBuilder<List<Pictogram>>(
@@ -337,26 +391,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Text('Library kosong. Tambah piktogram kat atas tu.', style: TextStyle(color: Colors.grey.shade600)),
-                  ),
-                );
+              final pictograms = snapshot.data ?? [];
+              if (pictograms.isEmpty) {
+                return const Center(child: Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: Text("Library anda kosong. Klik Force Sync kalau baru lepas reset."),
+                ));
               }
-
-              final pictograms = snapshot.data!;
-
               return ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: pictograms.length,
-                itemBuilder: (context, index) {
-                  final pic = pictograms[index];
-                  return _buildListItem(pic);
-                },
+                itemBuilder: (context, index) => _buildListItem(pictograms[index]),
               );
             },
           ),
@@ -367,14 +413,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _buildListItem(Pictogram pic) {
     Color catColor = _getCategoryColor(pic.category);
-
-    IconData specificIcon;
+    dynamic specificIcon;
     int? savedCodePoint = int.tryParse(pic.imageUrl);
-
     if (savedCodePoint != null) {
       specificIcon = IconData(savedCodePoint, fontFamily: 'MaterialIcons');
     } else {
-      specificIcon = _getSpecificIcon(pic.labelEn);
+      specificIcon = _mapAiStringToIcon(pic.labelEn);
     }
 
     return Container(
@@ -386,7 +430,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(color: catColor.withValues(alpha: 0.2), shape: BoxShape.circle),
-              child: Icon(specificIcon, color: catColor, size: 20)
+              child: _renderIcon(specificIcon, color: catColor, size: 20)
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -394,35 +438,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('${pic.labelEn} / ${pic.labelMs}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 2),
                     Text(pic.category, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ]
               )
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
-            onPressed: () {
-              showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Delete Pictogram?'),
-                    content: Text('Kau pasti nak buang "${pic.labelEn}" dari library?'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                      TextButton(
-                          onPressed: () {
-                            _dbService.deletePictogram(pic.id);
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${pic.labelEn} deleted!'), backgroundColor: Colors.red),
-                            );
-                          },
-                          child: const Text('Delete', style: TextStyle(color: Colors.red))
-                      ),
-                    ],
-                  )
-              );
-            },
+            onPressed: () => _dbService.deletePictogram(pic.id),
           ),
         ],
       ),

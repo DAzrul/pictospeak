@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/sync_service.dart'; // 🚨 J.A.R.V.I.S: Import lintah rahsia
 import 'services/auth_service.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -28,12 +30,24 @@ class _LoginScreenState extends State<LoginScreen> {
     _checkSavedPin();
   }
 
-  // Check kalau user dah ada PIN dalam fon ni (untuk background logic)
   void _checkSavedPin() async {
     String? pin = await _authService.getSavedPin();
     if (pin != null && pin.isNotEmpty) {
       setState(() => _hasSavedPin = true);
     }
+  }
+
+  // 🚨 J.A.R.V.I.S: Fungsi nav baru untuk bakar sejarah lama
+  void _navigateToDashboard() {
+    // 1. Kejutkan lintah awan serta-merta lepas login berjaya
+    SyncService().syncFromFirebase();
+
+    // 2. Padam semua history navigasi supaya tak boleh 'back' ke Login/Splash
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
+          (route) => false,
+    );
   }
 
   void _handleLogin() async {
@@ -50,32 +64,23 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (user != null) {
-      // Login E-mel Berjaya! Terus hantar ke Dashboard.
-      if (mounted) {
-        Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const CaregiverDashboard())
-        );
-      }
+      if (mounted) _navigateToDashboard();
     } else {
       _showSnackBar('Login Gagal. Sila periksa e-mel/password kau.', Colors.red);
     }
   }
 
-  // Fungsi Login guna Biometrik
   void _handleBiometricLogin() async {
     bool authenticated = await _authService.authenticateWithBiometrics();
     if (authenticated && mounted) {
-      print("Biometrik lulus! Masuk dashboard.");
-      Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const CaregiverDashboard())
-      );
+      _navigateToDashboard();
     }
   }
 
   void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: color, behavior: SnackBarBehavior.floating)
+    );
   }
 
   @override
@@ -87,6 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.textDark, size: 20),
+          // 🚨 Ini patah balik ke Splash/Landing
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -96,28 +102,30 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             children: [
               const SizedBox(height: 10),
-              // Logo & Title
               _buildHeader(),
               const SizedBox(height: 32),
 
-              // Kotak Login Tradisional
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))],
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05), // 🚨 Pakai withValues
+                        blurRadius: 20,
+                        offset: const Offset(0, 10)
+                    )
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Center(child: Text('Welcome Back', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold))),
                     const SizedBox(height: 20),
-
                     _buildTextField(_emailController, 'Email Address', Icons.email_outlined, false),
                     const SizedBox(height: 10),
                     _buildTextField(_passwordController, 'Password', Icons.lock_outline, true),
-
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
@@ -126,14 +134,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _handleLogin,
-                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                        child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Sign In', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryBlue,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text('Sign In', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                       ),
                     ),
                   ],
@@ -141,23 +153,19 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
 
               const SizedBox(height: 24),
-
-              // --- PILIHAN PIN/BIOMETRIK (Sentiasa Muncul) ---
               const Text("OR", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  // Butang PIN
                   _buildQuickAuthButton(Icons.dialpad, "Use PIN", () {
                     if (_hasSavedPin) {
+                      // PIN Gate juga perlukan navigasi replacement nanti
                       Navigator.push(context, MaterialPageRoute(builder: (context) => const PinGateScreen()));
                     } else {
                       _showSnackBar('Tiada PIN direkodkan! Sila login guna e-mel dulu.', Colors.orange);
                     }
                   }),
-
-                  // Butang Bio
                   _buildQuickAuthButton(Icons.fingerprint, "Biometric", () {
                     if (_hasSavedPin) {
                       _handleBiometricLogin();
@@ -167,7 +175,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   }),
                 ],
               ),
-
               const SizedBox(height: 24),
               _buildSignUpLink(),
             ],
@@ -177,14 +184,21 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Widget Helpers
+  // --- HELPER WIDGETS ---
   Widget _buildHeader() {
     return Column(
       children: [
         Container(
           height: 80, width: 80,
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))]),
-          child: ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.asset('assets/images/pictospeak.png', fit: BoxFit.cover)),
+          decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5))]
+          ),
+          child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.asset('assets/images/pictospeak.png', fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, size: 40))
+          ),
         ),
         const SizedBox(height: 16),
         const Text('PictoSpeak', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
@@ -200,7 +214,9 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: Colors.grey),
-        suffixIcon: isPassword ? IconButton(icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => _obscurePassword = !_obscurePassword)) : null,
+        suffixIcon: isPassword
+            ? IconButton(icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => _obscurePassword = !_obscurePassword))
+            : null,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
@@ -228,7 +244,10 @@ class _LoginScreenState extends State<LoginScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text("Don't have an account?", style: TextStyle(color: Colors.blueGrey[500])),
-        TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen())), child: const Text('Sign Up', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryBlue))),
+        TextButton(
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen())),
+            child: const Text('Sign Up', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryBlue))
+        ),
       ],
     );
   }

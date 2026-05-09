@@ -27,7 +27,7 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 2. KUNCI FIREBASE (Untuk Penjaga Login)
+  // 2. KUNCI FIREBASE (Dah di-upgrade untuk hafal e-mel)
   // ---------------------------------------------------------
   Future<User?> loginCaregiver(String email, String password) async {
     try {
@@ -35,6 +35,11 @@ class AuthService {
         email: email,
         password: password,
       );
+
+      // 🚨 J.A.R.V.I.S: Hafal e-mel & password untuk Silent Login guna PIN nanti
+      await _secureStorage.write(key: 'saved_email', value: email);
+      await _secureStorage.write(key: 'saved_password', value: password);
+
       return userCredential.user;
     } catch (e) {
       print("Error Login Bodoh: $e");
@@ -43,35 +48,20 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 3. PETI BESI PIN (Simpan PIN ikut User ID)
+  // 3. PETI BESI PIN (Simpan secara Global)
   // ---------------------------------------------------------
   Future<void> savePin(String pin) async {
-    final user = _auth.currentUser; // Kenal pasti siapa tengah aktif
-
-    if (user != null) {
-      // Kita buat nama kunci unik untuk setiap orang
-      String uniqueKey = 'pin_${user.uid}';
-      await _secureStorage.write(key: uniqueKey, value: pin);
-      print("PIN $pin berjaya dikunci dalam peti $uniqueKey!");
-    } else {
-      print("Woi, macam mana nak save PIN kalau tak login lagi?");
-    }
+    // Kita simpan PIN untuk fon ni terus, tak payah check UID dah
+    await _secureStorage.write(key: 'device_quick_pin', value: pin);
+    print("PIN $pin berjaya dikunci secara global!");
   }
 
   // ---------------------------------------------------------
-  // 4. PEMERIKSA PIN (Check masa nak masuk Caregiver Gate)
+  // 4. PEMERIKSA PIN
   // ---------------------------------------------------------
   Future<bool> verifyPin(String enteredPin) async {
-    final user = _auth.currentUser;
-    if (user == null) return false;
-
-    String uniqueKey = 'pin_${user.uid}';
-    String? savedPin = await _secureStorage.read(key: uniqueKey);
-
-    if (savedPin == null) {
-      print("PIN belum di-setup lagi untuk user ni!");
-      return false;
-    }
+    String? savedPin = await _secureStorage.read(key: 'device_quick_pin');
+    if (savedPin == null) return false;
     return savedPin == enteredPin;
   }
 
@@ -100,14 +90,11 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 6. AMBIL PIN (Untuk check session kat main.dart / login_screen)
+  // 6. AMBIL PIN (Untuk check kat Login Screen)
   // ---------------------------------------------------------
   Future<String?> getSavedPin() async {
-    final user = _auth.currentUser;
-    if (user == null) return null; // Kalau takde sapa login, return null terus
-
-    String uniqueKey = 'pin_${user.uid}';
-    return await _secureStorage.read(key: uniqueKey);
+    // Tak payah check currentUser == null lagi. Terus ambik dari peti.
+    return await _secureStorage.read(key: 'device_quick_pin');
   }
 
   // ---------------------------------------------------------
@@ -138,5 +125,25 @@ class AuthService {
     } else {
       print("Woi, user belum login la!");
     }
+  }
+
+  // ---------------------------------------------------------
+  // 🚨 8. FUNGSI BARU: SILENT LOGIN (Guna masa PIN betul)
+  // ---------------------------------------------------------
+  Future<bool> silentLogin() async {
+    String? email = await _secureStorage.read(key: 'saved_email');
+    String? password = await _secureStorage.read(key: 'saved_password');
+
+    if (email != null && password != null) {
+      try {
+        await _auth.signInWithEmailAndPassword(email: email, password: password);
+        print("J.A.R.V.I.S: Silent Login Berjaya! Welcome back.");
+        return true;
+      } catch (e) {
+        print("Silent Login Gagal: $e");
+        return false;
+      }
+    }
+    return false;
   }
 }
