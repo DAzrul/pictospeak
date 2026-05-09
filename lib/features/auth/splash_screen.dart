@@ -99,7 +99,7 @@ class SplashScreen extends StatelessWidget {
                           // LOMPAT KE SKRIN QUICK NEEDS KITA TADI!
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const QuickNeedsScreen()),
+                            MaterialPageRoute(builder: (context) => QuickNeedsScreen()),
                           );
                         },
                         icon: const Icon(Icons.chat_bubble_outline),
@@ -129,7 +129,7 @@ class SplashScreen extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    'Version 1.0.2',
+                    'Version 1.0.3',
                     style: TextStyle(fontSize: 12, color: Colors.blueGrey[300]),
                     textAlign: TextAlign.center,
                   ),

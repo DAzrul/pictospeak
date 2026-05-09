@@ -291,7 +291,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 DropdownButtonFormField<String>(
                   initialValue: _selectedCategory,
                   decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                  items: ['Subject', 'Verb', 'Object'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                  // 🚨 J.A.R.V.I.S: Update senarai ni sama macam kat SVO Builder
+                  items: ['Subject', 'Verb', 'Object', 'Adjective', 'Others'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                   onChanged: (val) {
                     setState(() {
                       _selectedCategory = val!;

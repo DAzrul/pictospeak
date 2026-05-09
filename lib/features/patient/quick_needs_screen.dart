@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/tts_service.dart'; // 🚨 J.A.R.V.I.S: Import mulut AI kat sini!
 import 'mood_selection_screen.dart';
 import 'svo_builder_screen.dart';
 
 class QuickNeedsScreen extends StatelessWidget {
-  const QuickNeedsScreen({super.key});
+  // 🚨 J.A.R.V.I.S: Panggil enjin suara AI
+  final TtsService _ttsService = TtsService();
+
+  QuickNeedsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +19,10 @@ class QuickNeedsScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.home_outlined, color: Colors.black87, size: 28),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            _ttsService.stop(); // Berhenti cakap kalau user keluar skrin
+            Navigator.pop(context);
+          },
         ),
         title: const Column(
           children: [
@@ -27,10 +34,12 @@ class QuickNeedsScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.grid_view_rounded, color: Colors.black87, size: 24),
-            onPressed: () {Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MoodSelectionScreen()),
-            );},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => MoodSelectionScreen()),
+              );
+            },
           ),
           const SizedBox(width: 8),
         ],
@@ -38,7 +47,7 @@ class QuickNeedsScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Bahagian tengah untuk butang keperluan asas [cite: 13, 17]
+            // Bahagian tengah untuk butang keperluan asas
             Expanded(
               child: Center(
                 child: SingleChildScrollView(
@@ -63,7 +72,7 @@ class QuickNeedsScreen extends StatelessWidget {
               ),
             ),
 
-            // BUTANG "BUILD CUSTOM SENTENCE" (Pintu masuk ke SVO Builder) [cite: 11, 25]
+            // BUTANG "BUILD CUSTOM SENTENCE" (Pintu masuk ke SVO Builder)
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -103,7 +112,7 @@ class QuickNeedsScreen extends StatelessWidget {
     );
   }
 
-  // Widget untuk butang piktogram keperluan segera [cite: 13, 21]
+  // Widget untuk butang piktogram keperluan segera
   Widget _buildNeedButton(BuildContext context, String titleEn, String titleMs, IconData icon, Color bgColor) {
     return Container(
       decoration: BoxDecoration(
@@ -120,14 +129,28 @@ class QuickNeedsScreen extends StatelessWidget {
         color: bgColor,
         borderRadius: BorderRadius.circular(28),
         child: InkWell(
-          onTap: () {
-            // Placeholder untuk fungsi Text-to-Speech (TTS) [cite: 15, 26]
+          // 🚨 J.A.R.V.I.S: Letak async kat sini supaya dia boleh tunggu TTS bercakap
+          onTap: () async {
+            // Berhentikan TTS kalau dia tengah bising merapu benda lain
+            await _ttsService.stop();
+
+            // Jerit guna TTS! (Boleh tukar 'titleMs' kalau nak dia sebut Melayu)
+            await _ttsService.speak(titleEn, lang: "en-US");
+
+            // SnackBar feedback kat skrin
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('TTS: $titleEn'),
+                content: Row(
+                  children: [
+                    const Icon(Icons.volume_up, color: Colors.white),
+                    const SizedBox(width: 10),
+                    Text('Speaking: $titleEn'),
+                  ],
+                ),
+                backgroundColor: bgColor,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                duration: const Duration(milliseconds: 800),
+                duration: const Duration(milliseconds: 1500),
               ),
             );
           },
