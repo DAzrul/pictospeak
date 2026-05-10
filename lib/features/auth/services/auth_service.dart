@@ -128,22 +128,25 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 🚨 8. FUNGSI BARU: SILENT LOGIN (Guna masa PIN betul)
-  // ---------------------------------------------------------
+  // 🚨 8. FUNGSI BARU: SILENT LOGIN (Guna masa PIN betul)J.A.R.V.I.S: Fungsi untuk pecah masuk Firebase secara senyap
+  // --------------------------------------------------------
   Future<bool> silentLogin() async {
-    String? email = await _secureStorage.read(key: 'saved_email');
-    String? password = await _secureStorage.read(key: 'saved_password');
+    try {
+      // 1. Sedut balik e-mel & password dari peti besi rahsia
+      String? email = await _secureStorage.read(key: 'saved_email');
+      String? password = await _secureStorage.read(key: 'saved_password');
 
-    if (email != null && password != null) {
-      try {
+      if (email != null && password != null) {
+        // 2. Tembak Firebase secara latar belakang
         await _auth.signInWithEmailAndPassword(email: email, password: password);
-        print("J.A.R.V.I.S: Silent Login Berjaya! Welcome back.");
+        print("J.A.R.V.I.S: Silent Login Berjaya! Firebase dah kenal kau.");
         return true;
-      } catch (e) {
-        print("Silent Login Gagal: $e");
-        return false;
       }
+      print("J.A.R.V.I.S: Data login tak jumpa. Kena login manual sekali.");
+      return false;
+    } catch (e) {
+      print("Silent Login Gagal: $e");
+      return false;
     }
-    return false;
   }
 }

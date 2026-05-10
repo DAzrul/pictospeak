@@ -351,3 +351,190 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 }
+
+/////////////////////////////////
+// --- 1. THE ULTIMATE KEYWORD-TO-ICON MAPPER ---
+  dynamic _mapAiStringToIcon(String aiResult) {
+    switch (aiResult.toLowerCase().trim()) {
+    // Subjects
+      case 'i': case 'me': case 'my': case 'myself': case 'person': return Icons.person;
+      case 'you': case 'your': return Icons.person_outline;
+      case 'we': case 'us': case 'our': return Icons.groups;
+      case 'they': case 'them': return Icons.group_outlined;
+      case 'mother': case 'mom': case 'woman': case 'female': return Icons.woman;
+      case 'father': case 'dad': case 'man': case 'male': return Icons.man;
+      case 'baby': case 'toddler': return Icons.child_care;
+      case 'brother': case 'sister': case 'sibling': return Icons.child_friendly;
+      case 'family': return Icons.family_restroom;
+      case 'teacher': case 'school': case 'student': return Icons.school;
+      case 'friend': return Icons.people_alt;
+      case 'grandpa': case 'grandma': case 'elderly': return Icons.elderly;
+      case 'uncle': case 'aunt': case 'cousin': return Icons.family_restroom;
+      case 'husband': case 'wife': return Icons.family_restroom;
+      case 'boyfriend': case 'girlfriend': return Icons.family_restroom;
+      case 'son': case 'daughter': return Icons.family_restroom;
+      case 'grandson': case 'granddaughter': return Icons.family_restroom;
+      case 'grandfather': case 'grandmother': return Icons.family_restroom;
+
+    // Verbs
+      case 'want': case 'wish': case 'choose': return Icons.touch_app;
+      case 'eat': case 'makan': case 'food': return Icons.restaurant;
+      case 'drink': case 'minum': case 'coffee': case 'thirsty': return Icons.local_cafe;
+      case 'sleep': case 'tired': case 'nap': return Icons.bed;
+      case 'go': case 'walk': case 'move': return Icons.directions_walk;
+      case 'run': case 'fast': return Icons.directions_run;
+      case 'watch': case 'tv': case 'see': case 'look': return Icons.visibility;
+      case 'listen': case 'hear': case 'music': return Icons.hearing;
+      case 'shower': case 'bath': case 'wash': return Icons.shower;
+      case 'play': case 'game': return Icons.sports_esports;
+      case 'study': case 'read': case 'book': return Icons.menu_book;
+      case 'work': case 'job': case 'office': return Icons.work;
+      case 'help': case 'support': return Icons.help;
+      case 'call': case 'talk': case 'chat': return Icons.chat;
+      case 'open': return Icons.door_back_door;
+      case 'close': return Icons.door_back_door;
+      case 'stop': return Icons.stop_circle;
+      case 'start': return Icons.play_circle_filled;
+      case 'yeah': return Icons.check_circle;
+      case 'yessir': return Icons.check_circle;
+      case 'yep': return Icons.check_circle;
+      case 'on': return Icons.power_settings_new;
+      case 'off': return Icons.power_settings_new;
+
+    // Objects
+      case 'water': case 'liquid': return Icons.water_drop;
+      case 'rice': return Icons.rice_bowl;
+      case 'bread': return Icons.bakery_dining;
+      case 'apple': return Icons.apple;
+      case 'burger': return Icons.fastfood;
+      case 'pizza': return Icons.local_pizza;
+      case 'cake': return Icons.cake;
+      case 'medicine': case 'pill': case 'drug': return Icons.medication;
+      case 'toilet': case 'wc': case 'bathroom': return Icons.wc;
+      case 'phone': case 'smartphone': case 'mobile': return Icons.smartphone;
+      case 'money': case 'cash': case 'pay': return Icons.attach_money;
+      case 'clothes': case 'shirt': return Icons.checkroom;
+      case 'bag': case 'shopping': return Icons.shopping_bag;
+      case 'home': case 'house': return Icons.home;
+      case 'hospital': case 'clinic': return Icons.local_hospital;
+      case 'toy': return Icons.toys;
+      case 'car': case 'drive': return Icons.directions_car;
+      case 'bus': return Icons.directions_bus;
+      case 'bike': return Icons.directions_bike;
+      case 'plane': return Icons.flight;
+      case 'computer': case 'laptop': return Icons.computer;
+      case 'key': return Icons.vpn_key;
+      case 'door': return Icons.door_back_door;
+      case 'chair': return Icons.chair;
+      case 'table': return Icons.table_bar;
+
+    // Adjectives (Feelings)
+      case 'happy': case 'good': case 'smile': return Icons.sentiment_very_satisfied;
+      case 'sad': case 'unhappy': case 'cry': return Icons.sentiment_very_dissatisfied;
+      case 'angry': case 'mad': return Icons.mood_bad;
+      case 'pain': case 'hurt': case 'injury': return Icons.personal_injury;
+      case 'hungry': return Icons.restaurant_menu;
+      case 'cold': case 'freeze': case 'ice': return Icons.ac_unit;
+      case 'hot': case 'fire': case 'burn': return Icons.whatshot;
+      case 'scared': case 'afraid': return Icons.psychology_alt;
+      case 'bored': return Icons.sentiment_neutral;
+      case 'loud': return Icons.volume_up;
+      case 'quiet': return Icons.volume_off;
+
+    // Emergency & Hygiene
+      case 'danger': case 'warning': return Icons.warning_rounded;
+      case 'police': return Icons.local_police;
+      case 'ambulance': return Icons.emergency;
+      case 'doctor': return Icons.medical_services;
+      case 'nurse': return Icons.medical_information;
+      case 'fever': case 'hot_body': return Icons.thermostat;
+      case 'cough': case 'flu': case 'sick': return Icons.sick;
+      case 'soap': return Icons.soap;
+      case 'toothbrush': return Icons.clean_hands;
+      case 'poop': return FontAwesomeIcons.poop;
+      case 'pee': return Icons.water_drop_outlined;
+      case 'blood': return Icons.bloodtype;
+
+    // Time & Frequency
+      case 'now': return Icons.access_time_filled;
+      case 'later': return Icons.update;
+      case 'always': return Icons.all_inclusive;
+      case 'never': return Icons.block;
+      case 'finish': return Icons.task_alt;
+      case 'today': return Icons.today;
+      case 'tomorrow': return Icons.event_note;
+      case 'yesterday': return Icons.event_note;
+      case 'next': return Icons.arrow_forward;
+      case 'last': return Icons.arrow_back;
+      case 'week': return Icons.calendar_view_week;
+      case 'month': return Icons.calendar_month;
+      case 'year': return Icons.calendar_today;
+      case 'hour': return Icons.schedule;
+      case 'minute': return Icons.schedule;
+      case 'second': return Icons.schedule;
+      case 'day': return Icons.calendar_today;
+      case 'weekdays': return Icons.calendar_today;
+      case 'weekends': return Icons.calendar_today;
+      case 'morning': return Icons.wb_sunny;
+      case 'afternoon': return Icons.wb_sunny;
+      case 'evening': return Icons.wb_sunny;
+      case 'night': return Icons.nights_stay;
+
+    // Questions
+      case 'what': return Icons.help_center;
+      case 'where': return Icons.location_on;
+      case 'who': return Icons.person_search;
+      case 'why': return Icons.psychology_alt;
+      case 'how': return Icons.question_mark;
+      case 'when': return Icons.calendar_today;
+      case 'is': return Icons.check_circle;
+      case 'are': return Icons.check_circle;
+      case 'was': return Icons.check_circle;
+      case 'were': return Icons.check_circle;
+      case 'have': return Icons.check_circle;
+      case 'has': return Icons.check_circle;
+      case 'had': return Icons.check_circle;
+      case 'do': return Icons.check_circle;
+      case 'does': return Icons.check_circle;
+      case 'did': return Icons.check_circle;
+      case 'can': return Icons.check_circle;
+      case 'could': return Icons.check_circle;
+      case 'will': return Icons.check_circle;
+      case 'would': return Icons.check_circle;
+      case 'should': return Icons.check_circle;
+      case 'may': return Icons.check_circle;
+      case 'might': return Icons.check_circle;
+      case 'must': return Icons.check_circle;
+      case 'need': return Icons.check_circle;
+      case 'like': return Icons.check_circle;
+      case 'love': return Icons.check_circle;
+      case 'hate': return Icons.check_circle;
+      case 'know': return Icons.check_circle;
+      case 'think': return Icons.check_circle;
+      case 'feel': return Icons.check_circle;
+
+    // Others / DIRECTIONS & MISC
+      case 'yes': case 'ok': case 'okay': case 'agree': return Icons.check_circle;
+      case 'no': case 'disagree': case 'reject': return Icons.cancel;
+      case 'up': case 'above': return Icons.arrow_upward;
+      case 'down': case 'below': return Icons.arrow_downward;
+      case 'left': return Icons.arrow_back;
+      case 'right': return Icons.arrow_forward;
+      case 'in': case 'inside': return Icons.login;
+      case 'out': case 'outside': return Icons.logout;
+      case 'more': return Icons.add_circle_outline;
+      case 'less': return Icons.remove_circle_outline;
+
+    // 9. ANIMALS (FONT AWESOME)
+      case 'cat': return FontAwesomeIcons.cat;
+      case 'dog': return FontAwesomeIcons.dog;
+      case 'bird': return FontAwesomeIcons.dove;
+      case 'fish': return FontAwesomeIcons.fish;
+      case 'horse': return FontAwesomeIcons.horse;
+      case 'cow': return FontAwesomeIcons.cow;
+      case 'frog': return FontAwesomeIcons.frog;
+      case 'spider': return FontAwesomeIcons.spider;
+
+      default: return Icons.extension; // Puzzle fallback
+    }
+  }

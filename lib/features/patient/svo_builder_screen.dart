@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-// 🚨 J.A.R.V.I.S: Guna package import supaya tak sesat jalan
+// 🚨 J.A.R.V.I.S: Import lintah & enjin utama
 import 'package:pictospeak/core/services/local_db.dart';
 import 'package:pictospeak/core/services/prediction_service.dart';
 import 'package:pictospeak/core/services/tts_service.dart';
@@ -11,7 +12,6 @@ import 'package:pictospeak/core/models/pictogram_model.dart';
 import 'package:pictospeak/core/theme/app_theme.dart';
 
 class SvoBuilderScreen extends StatefulWidget {
-  // 🚨 J.A.R.V.I.S: Dah repair constructor kat bawah ni. Takde lagi 'super.override' merapu tu.
   const SvoBuilderScreen({super.key});
 
   @override
@@ -31,82 +31,211 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
   @override
   void initState() {
     super.initState();
+    // 🚨 J.A.R.V.I.S: Refresh data lokal
     SyncService().syncFromFirebase().then((_) {
       if (mounted) setState(() {});
     });
     _updateSuggestions();
   }
 
-  // --- LOGIK RENDER ICON (FIXED DECIMAL VERSION) ---
+  // --- 1. THE ULTIMATE KEYWORD-TO-ICON MAPPER ---
   dynamic _mapAiStringToIcon(String aiResult) {
     switch (aiResult.toLowerCase().trim()) {
-      case 'cat': return FontAwesomeIcons.cat;
-      case 'dog': return FontAwesomeIcons.dog;
-      case 'fish': return FontAwesomeIcons.fish;
-      case 'bird': return FontAwesomeIcons.crow;
-      case 'burger': return FontAwesomeIcons.burger;
-      case 'apple': return FontAwesomeIcons.apple;
-      case 'brain': return FontAwesomeIcons.brain;
-      case 'tooth': return FontAwesomeIcons.tooth;
-      case 'ghost': return FontAwesomeIcons.ghost;
-      case 'gift': return FontAwesomeIcons.gift;
-      case 'heart': return FontAwesomeIcons.solidHeart;
-      case 'poop': return FontAwesomeIcons.poop;
-      case 'wheelchair': return FontAwesomeIcons.wheelchair;
-      case 'woman': return Icons.woman;
-      case 'man': return Icons.man;
-      case 'baby': return Icons.child_care;
+    // Subjects
+      case 'i': case 'me': case 'my': case 'myself': case 'person': return Icons.person;
+      case 'you': case 'your': return Icons.person_outline;
+      case 'we': case 'us': case 'our': return Icons.groups;
+      case 'they': case 'them': return Icons.group_outlined;
+      case 'mother': case 'mom': case 'woman': case 'female': return Icons.woman;
+      case 'father': case 'dad': case 'man': case 'male': return Icons.man;
+      case 'baby': case 'toddler': return Icons.child_care;
+      case 'brother': case 'sister': case 'sibling': return Icons.child_friendly;
       case 'family': return Icons.family_restroom;
-      case 'person': return Icons.person;
-      case 'car': return Icons.directions_car;
+      case 'teacher': case 'school': case 'student': return Icons.school;
+      case 'friend': return Icons.people_alt;
+      case 'grandpa': case 'grandma': case 'elderly': return Icons.elderly;
+      case 'uncle': case 'aunt': case 'cousin': return Icons.family_restroom;
+      case 'husband': case 'wife': return Icons.family_restroom;
+      case 'boyfriend': case 'girlfriend': return Icons.family_restroom;
+      case 'son': case 'daughter': return Icons.family_restroom;
+      case 'grandson': case 'granddaughter': return Icons.family_restroom;
+      case 'grandfather': case 'grandmother': return Icons.family_restroom;
+
+    // Verbs
+      case 'want': case 'wish': case 'choose': return Icons.touch_app;
+      case 'eat': case 'makan': case 'food': return Icons.restaurant;
+      case 'drink': case 'minum': case 'coffee': case 'thirsty': return Icons.local_cafe;
+      case 'sleep': case 'tired': case 'nap': return Icons.bed;
+      case 'go': case 'walk': case 'move': return Icons.directions_walk;
+      case 'run': case 'fast': return Icons.directions_run;
+      case 'watch': case 'tv': case 'see': case 'look': return Icons.visibility;
+      case 'listen': case 'hear': case 'music': return Icons.hearing;
+      case 'shower': case 'bath': case 'wash': return Icons.shower;
+      case 'play': case 'game': return Icons.sports_esports;
+      case 'study': case 'read': case 'book': return Icons.menu_book;
+      case 'work': case 'job': case 'office': return Icons.work;
+      case 'help': case 'support': return Icons.help;
+      case 'call': case 'talk': case 'chat': return Icons.chat;
+      case 'open': return Icons.door_back_door;
+      case 'close': return Icons.door_back_door;
+      case 'stop': return Icons.stop_circle;
+      case 'start': return Icons.play_circle_filled;
+      case 'yeah': return Icons.check_circle;
+      case 'yessir': return Icons.check_circle;
+      case 'yep': return Icons.check_circle;
+      case 'on': return Icons.power_settings_new;
+      case 'off': return Icons.power_settings_new;
+
+    // Objects
+      case 'water': case 'liquid': return Icons.water_drop;
+      case 'rice': return Icons.rice_bowl;
+      case 'bread': return Icons.bakery_dining;
+      case 'apple': return Icons.apple;
+      case 'burger': return Icons.fastfood;
+      case 'pizza': return Icons.local_pizza;
+      case 'cake': return Icons.cake;
+      case 'medicine': case 'pill': case 'drug': return Icons.medication;
+      case 'toilet': case 'wc': case 'bathroom': return Icons.wc;
+      case 'phone': case 'smartphone': case 'mobile': return Icons.smartphone;
+      case 'money': case 'cash': case 'pay': return Icons.attach_money;
+      case 'clothes': case 'shirt': return Icons.checkroom;
+      case 'bag': case 'shopping': return Icons.shopping_bag;
+      case 'home': case 'house': return Icons.home;
+      case 'hospital': case 'clinic': return Icons.local_hospital;
+      case 'toy': return Icons.toys;
+      case 'car': case 'drive': return Icons.directions_car;
       case 'bus': return Icons.directions_bus;
       case 'bike': return Icons.directions_bike;
       case 'plane': return Icons.flight;
-      case 'boat': return Icons.directions_boat;
-      case 'water': return Icons.water_drop;
-      case 'food': return Icons.restaurant;
-      case 'coffee': return Icons.local_cafe;
-      case 'cake': return Icons.cake;
-      case 'pet': return Icons.pets;
-      case 'sun': return Icons.wb_sunny;
-      case 'moon': return Icons.nightlight_round;
-      case 'fire': return Icons.local_fire_department;
-      case 'tree': return Icons.park;
-      case 'star': return Icons.star;
-      case 'home': return Icons.home;
-      case 'hospital': return Icons.local_hospital;
-      case 'school': return Icons.school;
-      case 'shop': return Icons.store;
-      case 'toilet': return Icons.wc;
-      case 'happy': return Icons.sentiment_very_satisfied;
-      case 'sad': return Icons.sentiment_very_dissatisfied;
-      case 'angry': return Icons.mood_bad;
-      case 'pain': return Icons.personal_injury;
-      case 'hand': return Icons.back_hand;
-      case 'face': return Icons.face;
-      case 'body': return Icons.accessibility_new;
-      case 'eye': return Icons.visibility;
-      case 'ear': return Icons.hearing;
-      case 'tv': return Icons.tv;
-      case 'phone': return Icons.smartphone;
-      case 'book': return Icons.menu_book;
-      case 'music': return Icons.music_note;
-      case 'camera': return Icons.photo_camera;
-      case 'money': return Icons.attach_money;
-      case 'clothes': return Icons.checkroom;
-      case 'bag': return Icons.shopping_bag;
-      case 'clock': return Icons.access_time;
+      case 'computer': case 'laptop': return Icons.computer;
       case 'key': return Icons.vpn_key;
-      case 'toy': return Icons.toys;
-      case 'bed': return Icons.bed;
-      case 'walk': return Icons.directions_walk;
-      case 'run': return Icons.directions_run;
-      case 'search': return Icons.search;
-      case 'chat': return Icons.chat;
-      case 'work': return Icons.work;
-      case 'play': return Icons.sports_esports;
-      case 'sport': return Icons.sports_soccer;
-      default: return Icons.extension;
+      case 'door': return Icons.door_back_door;
+      case 'chair': return Icons.chair;
+      case 'table': return Icons.table_bar;
+
+    // Adjectives (Feelings)
+      case 'happy': case 'good': case 'smile': return Icons.sentiment_very_satisfied;
+      case 'sad': case 'unhappy': case 'cry': return Icons.sentiment_very_dissatisfied;
+      case 'angry': case 'mad': return Icons.mood_bad;
+      case 'pain': case 'hurt': case 'injury': return Icons.personal_injury;
+      case 'hungry': return Icons.restaurant_menu;
+      case 'cold': case 'freeze': case 'ice': return Icons.ac_unit;
+      case 'hot': case 'fire': case 'burn': return Icons.whatshot;
+      case 'scared': case 'afraid': return Icons.psychology_alt;
+      case 'bored': return Icons.sentiment_neutral;
+      case 'loud': return Icons.volume_up;
+      case 'quiet': return Icons.volume_off;
+
+    // Emergency & Hygiene
+      case 'danger': case 'warning': return Icons.warning_rounded;
+      case 'police': return Icons.local_police;
+      case 'ambulance': return Icons.emergency;
+      case 'doctor': return Icons.medical_services;
+      case 'nurse': return Icons.medical_information;
+      case 'fever': case 'hot_body': return Icons.thermostat;
+      case 'cough': case 'flu': case 'sick': return Icons.sick;
+      case 'soap': return Icons.soap;
+      case 'toothbrush': return Icons.clean_hands;
+      case 'poop': return FontAwesomeIcons.poop;
+      case 'pee': return Icons.water_drop_outlined;
+      case 'blood': return Icons.bloodtype;
+
+    // Time & Frequency
+      case 'now': return Icons.access_time_filled;
+      case 'later': return Icons.update;
+      case 'always': return Icons.all_inclusive;
+      case 'never': return Icons.block;
+      case 'finish': return Icons.task_alt;
+      case 'today': return Icons.today;
+      case 'tomorrow': return Icons.event_note;
+      case 'yesterday': return Icons.event_note;
+      case 'next': return Icons.arrow_forward;
+      case 'last': return Icons.arrow_back;
+      case 'week': return Icons.calendar_view_week;
+      case 'month': return Icons.calendar_month;
+      case 'year': return Icons.calendar_today;
+      case 'hour': return Icons.schedule;
+      case 'minute': return Icons.schedule;
+      case 'second': return Icons.schedule;
+      case 'day': return Icons.calendar_today;
+      case 'weekdays': return Icons.calendar_today;
+      case 'weekends': return Icons.calendar_today;
+      case 'morning': return Icons.wb_sunny;
+      case 'afternoon': return Icons.wb_sunny;
+      case 'evening': return Icons.wb_sunny;
+      case 'night': return Icons.nights_stay;
+
+    // Questions
+      case 'what': return Icons.help_center;
+      case 'where': return Icons.location_on;
+      case 'who': return Icons.person_search;
+      case 'why': return Icons.psychology_alt;
+      case 'how': return Icons.question_mark;
+      case 'when': return Icons.calendar_today;
+      case 'is': return Icons.check_circle;
+      case 'are': return Icons.check_circle;
+      case 'was': return Icons.check_circle;
+      case 'were': return Icons.check_circle;
+      case 'have': return Icons.check_circle;
+      case 'has': return Icons.check_circle;
+      case 'had': return Icons.check_circle;
+      case 'do': return Icons.check_circle;
+      case 'does': return Icons.check_circle;
+      case 'did': return Icons.check_circle;
+      case 'can': return Icons.check_circle;
+      case 'could': return Icons.check_circle;
+      case 'will': return Icons.check_circle;
+      case 'would': return Icons.check_circle;
+      case 'should': return Icons.check_circle;
+      case 'may': return Icons.check_circle;
+      case 'might': return Icons.check_circle;
+      case 'must': return Icons.check_circle;
+      case 'need': return Icons.check_circle;
+      case 'like': return Icons.check_circle;
+      case 'love': return Icons.check_circle;
+      case 'hate': return Icons.check_circle;
+      case 'know': return Icons.check_circle;
+      case 'think': return Icons.check_circle;
+      case 'feel': return Icons.check_circle;
+
+    // Others / DIRECTIONS & MISC
+      case 'yes': case 'ok': case 'okay': case 'agree': return Icons.check_circle;
+      case 'no': case 'disagree': case 'reject': return Icons.cancel;
+      case 'up': case 'above': return Icons.arrow_upward;
+      case 'down': case 'below': return Icons.arrow_downward;
+      case 'left': return Icons.arrow_back;
+      case 'right': return Icons.arrow_forward;
+      case 'in': case 'inside': return Icons.login;
+      case 'out': case 'outside': return Icons.logout;
+      case 'more': return Icons.add_circle_outline;
+      case 'less': return Icons.remove_circle_outline;
+
+    // 9. ANIMALS (FONT AWESOME)
+      case 'cat': return FontAwesomeIcons.cat;
+      case 'dog': return FontAwesomeIcons.dog;
+      case 'bird': return FontAwesomeIcons.dove;
+      case 'fish': return FontAwesomeIcons.fish;
+      case 'horse': return FontAwesomeIcons.horse;
+      case 'cow': return FontAwesomeIcons.cow;
+      case 'frog': return FontAwesomeIcons.frog;
+      case 'spider': return FontAwesomeIcons.spider;
+
+      default: return Icons.extension; // Puzzle fallback
+    }
+  }
+
+  // --- 2. WARNA KATEGORI ---
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'Subject': return Colors.blue;
+      case 'Verb': return Colors.orange;
+      case 'Object': return Colors.green;
+      case 'Adjective': return Colors.purple;
+      case 'Emergency': return Colors.red;
+      case 'Hygiene': return Colors.teal;
+      case 'Question': return Colors.indigo;
+      case 'Time': return Colors.amber;
+      default: return Colors.blueGrey;
     }
   }
 
@@ -115,18 +244,73 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
     if (codePoint != null) {
       return IconData(codePoint, fontFamily: 'MaterialIcons');
     }
-    return _mapAiStringToIcon(_aiService.checkOfflineDictionary(pic.labelEn.toLowerCase()));
+    return _mapAiStringToIcon(pic.labelEn.toLowerCase());
   }
 
-  Widget _renderSmartIcon(dynamic iconData, double size, Color color) {
-    try {
-      if (iconData is IconData) {
-        return Icon(iconData, size: size, color: color);
-      } else {
-        return FaIcon(iconData, size: size, color: color);
-      }
-    } catch (e) {
-      return Icon(Icons.broken_image, size: size, color: color);
+  Widget _renderSmartIcon(String imageUrl, double size, Color color, String label) {
+    // 1. Check kalau itu URL Gambar (Mula dengan http)
+    if (imageUrl.startsWith('http')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12), // Kasi rounded sikit baru style
+        child: Image.network(
+          imageUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          // 🚨 J.A.R.V.I.S: Fallback kalau internet mati masa tengah loading
+          errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, size: size, color: color),
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return SizedBox(
+              width: size, height: size,
+              child: Center(child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
+              )),
+            );
+          },
+        ),
+      );
+    }
+
+    // 2. Check kalau itu Material Icon (CodePoint nombor)
+    int? codePoint = int.tryParse(imageUrl);
+    if (codePoint != null) {
+      return Icon(IconData(codePoint, fontFamily: 'MaterialIcons'), size: size, color: color);
+    }
+
+    // 3. Last Resort: Guna AI Mapping (Keyword)
+    dynamic iconData = _mapAiStringToIcon(imageUrl.isNotEmpty ? imageUrl : label);
+
+    // Kalau dapat puzzle (tak jumpa), guna Ghost Vision (Huruf Pertama)
+    if (iconData == Icons.extension) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Text(
+            label.isNotEmpty ? label[0].toUpperCase() : '?',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: size * 0.5,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Render Icon (Material atau FontAwesome)
+    if (iconData is IconData) {
+      return Icon(iconData, size: size, color: color);
+    } else {
+      return FaIcon(iconData, size: size, color: color);
     }
   }
 
@@ -139,22 +323,10 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
     if (mounted) setState(() => dynamicSuggestions = suggestions);
   }
 
-  void _triggerSOS(BuildContext context) async {
-    const String sosEn = "Help me, please call my caregiver!";
-    const String sosMs = "Tolong saya, sila panggil penjaga saya!";
-    await _ttsService.speak(sosEn, lang: "en-US");
-
-    // 🚨 J.A.R.V.I.S: Repair 'async gap'. Check mounted dulu sebelum guna context.
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('🚨 SOS: $sosMs'), backgroundColor: Colors.red[900], behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 4)),
-    );
-  }
-
   void _handleWordSelection(Pictogram pic) {
     setState(() {
       selectedSentence.add(pic);
+      // 🚨 Auto-Progression Logic
       if (_activeCategory == 'Subject') _activeCategory = 'Verb';
       else if (_activeCategory == 'Verb') _activeCategory = 'Object';
     });
@@ -166,16 +338,9 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () {
-            _ttsService.stop();
-            Navigator.pop(context);
-          },
-        ),
-        title: const Text('Build Sentence', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white, elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black87), onPressed: () => Navigator.pop(context)),
+        title: const Text('SVO Builder', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
       body: Column(
@@ -187,24 +352,15 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
 
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: FutureBuilder<List<Map<String, dynamic>>>(
                 future: _localDB.getPictogramsByCategory(_activeCategory),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
+                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                   final dataList = snapshot.data ?? [];
 
                   if (dataList.isEmpty) {
-                    return Center(
-                        child: Text(
-                            "Tiada data untuk kategori $_activeCategory.\nSila pastikan data telah di-sync.",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey.shade400)
-                        )
-                    );
+                    return Center(child: Text("Tiada data kategori $_activeCategory.\nSila Sync di Library.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade400)));
                   }
 
                   final pictograms = dataList.map((map) => Pictogram(
@@ -219,7 +375,7 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
 
                   return GridView.builder(
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.8,
+                      crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.85,
                     ),
                     itemCount: pictograms.length,
                     itemBuilder: (context, index) => _buildLargeIconButton(pictograms[index]),
@@ -235,34 +391,41 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
   }
 
   Widget _buildCategoryTabs() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: SingleChildScrollView(
+    final List<String> categories = ['Subject', 'Verb', 'Object', 'Adjective', 'Emergency', 'Hygiene', 'Question', 'Time', 'Others'];
+
+    return Container(
+      height: 60,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        child: Row(
-          children: ['Subject', 'Verb', 'Object', 'Adjective', 'Others'].map((cat) {
-            bool isActive = _activeCategory == cat;
-            return GestureDetector(
-              onTap: () {
-                setState(() => _activeCategory = cat);
-                _updateSuggestions();
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: isActive ? AppTheme.primaryBlue : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isActive ? AppTheme.primaryBlue : Colors.grey.shade300),
-                  boxShadow: isActive ? [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
-                ),
-                child: Center(
-                  child: Text(cat, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isActive ? Colors.white : Colors.grey.shade600)),
-                ),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          String cat = categories[index];
+          bool isActive = _activeCategory == cat;
+          Color catColor = _getCategoryColor(cat);
+
+          return GestureDetector(
+            onTap: () {
+              setState(() => _activeCategory = cat);
+              _updateSuggestions();
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: isActive ? catColor : Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: isActive ? catColor : Colors.grey.shade300),
+                boxShadow: isActive ? [BoxShadow(color: catColor.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
               ),
-            );
-          }).toList(),
-        ),
+              child: Center(
+                child: Text(cat, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: isActive ? Colors.white : Colors.grey.shade600)),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -283,23 +446,42 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
                     bool isFirst = index == 0;
                     bool isLast = index == totalBoxes - 1;
                     bool isFilled = index < selectedSentence.length;
-                    bool isActive = index == selectedSentence.length;
-                    String title = index == 0 ? 'Subject' : index == 1 ? 'Verb' : index == 2 ? 'Object' : '...';
-                    String? val = isFilled ? selectedSentence[index].labelEn.split(' / ')[0] : null;
 
-                    Color boxColor = isActive ? AppTheme.primaryBlue : (isFilled ? Colors.blue.shade100 : Colors.grey.shade300);
-                    Color textColor = isActive ? Colors.white : (isFilled ? AppTheme.primaryBlue : Colors.grey.shade600);
+                    String? val = isFilled ? selectedSentence[index].labelEn : null;
+                    String title = index == 0 ? 'Subject' : index == 1 ? 'Verb' : index == 2 ? 'Object' : '...';
+
+                    Color boxColor = isFilled
+                        ? _getCategoryColor(selectedSentence[index].category).withValues(alpha: 0.2)
+                        : Colors.white;
+                    Color textColor = isFilled
+                        ? _getCategoryColor(selectedSentence[index].category)
+                        : Colors.grey.shade400;
 
                     return Transform.translate(
                       offset: Offset(isFirst ? 0 : index * -15.0, 0),
                       child: ClipPath(
                         clipper: PuzzleClipper(isFirst: isFirst, isLast: isLast),
                         child: Container(
-                          width: 100, height: 85, color: boxColor,
+                          width: 110, height: 85,
+                          color: boxColor,
+                          // Cari bahagian Row dalam _buildLegoSvoDisplay, ganti bahagian Text(val ?? title)
+                          // Ganti Text tu dengan Column atau Stack supaya ada icon + text:
+
                           child: Center(
-                            child: val != null
-                                ? Text(val, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 13), textAlign: TextAlign.center, maxLines: 2)
-                                : Text(title, style: TextStyle(fontSize: 11, color: textColor)),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              child: isFilled
+                                  ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // 🚨 Tayang gambar/icon dalam lego!
+                                  _renderSmartIcon(selectedSentence[index].imageUrl, 28, textColor, selectedSentence[index].labelEn),
+                                  const SizedBox(height: 4),
+                                  Text(val!, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 10), textAlign: TextAlign.center),
+                                ],
+                              )
+                                  : Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 13)),
+                            ),
                           ),
                         ),
                       ),
@@ -315,74 +497,78 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
     );
   }
 
-  Widget _buildSosBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Material(
-        elevation: 4, borderRadius: BorderRadius.circular(12), color: Colors.orange[800],
-        child: InkWell(
-          onTap: () => _triggerSOS(context),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
-              SizedBox(width: 10),
-              Text('SOS / Call Caregiver', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            ]),
-          ),
-        ),
+  Widget _buildSosBar() => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+    child: ElevatedButton(
+      onPressed: () async {
+        await _ttsService.speak("Help me, please call my caregiver!", lang: "en-US");
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.red[700], foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 4, minimumSize: const Size(double.infinity, 50),
       ),
-    );
-  }
+      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(Icons.warning_amber_rounded), SizedBox(width: 8),
+        Text('SOS / CALL CAREGIVER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      ]),
+    ),
+  );
 
-  Widget _buildUndoButton() => IconButton(
-    onPressed: () {
-      if (selectedSentence.isNotEmpty) {
-        setState(() {
-          selectedSentence.removeLast();
-          if (selectedSentence.isEmpty) _activeCategory = 'Subject';
-          else if (selectedSentence.length == 1) _activeCategory = 'Verb';
-          else _activeCategory = 'Object';
-        });
-        _updateSuggestions();
-      }
-    },
-    icon: const Icon(Icons.undo_rounded, color: Colors.grey),
+  Widget _buildUndoButton() => Container(
+    margin: const EdgeInsets.only(left: 8),
+    child: IconButton(
+      onPressed: () {
+        if (selectedSentence.isNotEmpty) {
+          setState(() {
+            selectedSentence.removeLast();
+            if (selectedSentence.isEmpty) _activeCategory = 'Subject';
+            else if (selectedSentence.length == 1) _activeCategory = 'Verb';
+            else _activeCategory = 'Object';
+          });
+          _updateSuggestions();
+        }
+      },
+      icon: const Icon(Icons.undo_rounded, color: Colors.redAccent),
+    ),
   );
 
   Widget _buildSuggestedWordsBar() => Container(
     width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    color: Colors.blue.withValues(alpha: 0.05),
     child: SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
-        children: dynamicSuggestions.isEmpty
-            ? [const Text("Tiada cadangan...", style: TextStyle(fontSize: 12, color: Colors.grey))]
-            : dynamicSuggestions.map((label) => _buildSuggestChip(label)).toList(),
+        children: dynamicSuggestions.map((label) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ActionChip(
+            label: Text(label.split(' / ')[0], style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue)),
+            backgroundColor: Colors.white,
+            onPressed: () {},
+          ),
+        )).toList(),
       ),
     ),
   );
 
-  Widget _buildSuggestChip(String label) => Container(
-    margin: const EdgeInsets.only(right: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.withValues(alpha: 0.2))),
-    child: Text(label.split(' / ')[0], style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue)),
-  );
-
-  Widget _buildLargeIconButton(Pictogram pic) => InkWell(
-    onTap: () => _handleWordSelection(pic),
-    child: Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withValues(alpha: 0.1))),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        _renderSmartIcon(_getIconFromPic(pic), 40, AppTheme.primaryBlue),
-        const SizedBox(height: 12),
-        Text(pic.labelEn.split(' / ')[0], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        Text(pic.labelMs.split(' / ')[0], style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-      ]),
-    ),
-  );
+  Widget _buildLargeIconButton(Pictogram pic) {
+    Color catColor = _getCategoryColor(pic.category);
+    return InkWell(
+      onTap: () => _handleWordSelection(pic),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: catColor.withValues(alpha: 0.1), width: 2),
+        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          _renderSmartIcon(pic.imageUrl, 36, catColor, pic.labelEn),
+          const SizedBox(height: 10),
+          Text(pic.labelEn, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center),
+          Text(pic.labelMs, style: TextStyle(fontSize: 10, color: Colors.grey[500]), textAlign: TextAlign.center),
+        ]),
+      ),
+    );
+  }
 
   Widget _buildSpeakButton() => Container(
     padding: const EdgeInsets.all(20), color: Colors.white,
@@ -391,26 +577,31 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
         width: double.infinity, height: 60,
         child: ElevatedButton.icon(
           onPressed: selectedSentence.isEmpty ? null : () async {
-            String sentenceEn = selectedSentence.map((pic) => pic.labelEn.split(' / ')[0]).join(" ");
+            String sentenceEn = selectedSentence.map((pic) => pic.labelEn).join(" ");
             await _ttsService.speak(sentenceEn, lang: "en-US");
           },
           icon: const Icon(Icons.volume_up, color: Colors.white),
-          label: const Text('Speak', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+          label: const Text('Speak Sentence', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
           style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
         ),
       ),
-      TextButton(onPressed: () => setState(() { selectedSentence.clear(); _activeCategory = 'Subject'; _updateSuggestions(); }), child: const Text('Clear sentence', style: TextStyle(color: Colors.grey, fontSize: 12))),
+      const SizedBox(height: 8),
+      TextButton(
+          onPressed: () => setState(() { selectedSentence.clear(); _activeCategory = 'Subject'; _updateSuggestions(); }),
+          child: const Text('Reset Builder', style: TextStyle(color: Colors.grey))
+      ),
     ]),
   );
 }
 
+// 🧩 PUZZLE CLIPPER
 class PuzzleClipper extends CustomClipper<Path> {
   final bool isFirst; final bool isLast;
   PuzzleClipper({this.isFirst = false, this.isLast = false});
   @override
   Path getClip(Size size) {
     final path = Path();
-    final double tabWidth = 15.0; final double tabHeight = 25.0; final double radius = 8.0;
+    final double tabWidth = 15.0; final double tabHeight = 25.0; final double radius = 12.0;
     path.moveTo(radius, 0);
     path.lineTo(size.width - (isLast ? 0 : tabWidth) - radius, 0);
     path.arcToPoint(Offset(size.width - (isLast ? 0 : tabWidth), radius), radius: Radius.circular(radius));

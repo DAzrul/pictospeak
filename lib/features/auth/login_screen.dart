@@ -71,9 +71,24 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleBiometricLogin() async {
+    // 1. Scan jari/muka
     bool authenticated = await _authService.authenticateWithBiometrics();
+
     if (authenticated && mounted) {
-      _navigateToDashboard();
+      setState(() => _isLoading = true); // Tunjuk loading jap
+
+      // 🚨 J.A.R.V.I.S: Step paling penting!
+      // Kita kena login Firebase secara latar belakang guna modal yang dah dihafal.
+      bool loggedIn = await _authService.silentLogin();
+
+      setState(() => _isLoading = false);
+
+      if (loggedIn) {
+        // 2. Kalau Firebase dah kenal, baru kita terbang ke Dashboard
+        _navigateToDashboard();
+      } else {
+        _showSnackBar('Sesi tamat! Sila login guna e-mel manual sekali lagi.', Colors.orange);
+      }
     }
   }
 

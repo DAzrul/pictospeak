@@ -68,7 +68,7 @@ class LocalDB {
   Future<void> deleteAllPictograms() async {
     final db = await database;
     try {
-      await db.delete(tableName); // Guna variable tableName lagi selamat
+      await db.delete(tableName);
       debugPrint("J.A.R.V.I.S: Database lokal telah dikosongkan. Licin gila babi!");
     } catch (e) {
       debugPrint("Error masa nak delete: $e");

@@ -44,6 +44,8 @@ dependencies:
   http: ^1.2.0
   font_awesome_flutter: ^11.0.0
   flutter_tts: ^4.2.5
+  image_picker: ^1.0.7
+  firebase_storage: ^13.3.0
 
 dev_dependencies:
   flutter_test:

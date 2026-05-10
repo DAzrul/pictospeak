@@ -73,10 +73,27 @@ class _PinGateScreenState extends State<PinGateScreen> {
     }
   }
 
+  // 🚨 FUNGSI NI KENA ADA DALAM pin_gate_screen.dart
   void _handleBiometric() async {
+    // 1. Scan jari dulu
     bool authenticated = await _authService.authenticateWithBiometrics();
-    if (authenticated && mounted) {
-      _navigateToDashboard();
+
+    if (authenticated) {
+      // 🚨 J.A.R.V.I.S: JANGAN TERUS MASUK DASHBOARD LAGI!
+      // Kita kena bagi Firebase kenal kita dulu.
+      bool loggedIn = await _authService.silentLogin();
+
+      if (loggedIn && mounted) {
+        // Firebase dah bangun, baru kita tembus masuk Dashboard
+        _navigateToDashboard();
+      } else {
+        // Kalau gagal (contoh: internet takde atau password dah tukar)
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sesi tamat! Sila login guna e-mel semula.'), backgroundColor: Colors.orange),
+          );
+        }
+      }
     }
   }
 
