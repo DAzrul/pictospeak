@@ -344,7 +344,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     });
   }
 
-  void _addPictogramToFirebase() async {
+  // 🚨 J.A.R.V.I.S: Tambah 'List<String> tags' kat dalam kurungan ni
+  void _addPictogramToFirebase(List<String> tags) async {
     if (_labelEnController.text.isEmpty || _labelMsController.text.isEmpty) return;
     setState(() => _isLoading = true);
 
@@ -361,16 +362,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
             : _labelEnController.text.toLowerCase().trim();
       }
 
+      // 🚨 J.A.R.V.I.S: Hantar 'tags' tu masuk ke dalam enjin DatabaseService
       await _dbService.addPictogram(
         _labelEnController.text.trim(),
         _labelMsController.text.trim(),
         _selectedCategory,
         finalImagePath,
+        tags, // 👈 INI YANG TERTINGGAL TADI BABI!
         isPublic: _shareWithCommunity,
       );
 
+      // Bersihkan semua kotak lepas berjaya simpan
       _labelEnController.clear();
       _labelMsController.clear();
+      _tagsController.clear(); // 🚨 Jangan lupa clear kotak tags
+
       setState(() { _imageFile = null; _dynamicIcon = Icons.image_search; });
     } catch (e) {
       debugPrint("Error: $e");
@@ -420,6 +426,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  // 🚨 J.A.R.V.I.S: Kena tambah controller ni kat atas skali dengan controller lain!
+  final TextEditingController _tagsController = TextEditingController();
+
   Widget _buildAddPictogramSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -430,7 +439,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
           const Text('1. Smart Icon / Image Preview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
           const SizedBox(height: 12),
 
-          // 🚨 PREVIEW BOX (TAP UNTUK PILIH IMEJ)
           Center(
             child: GestureDetector(
               onTap: _pickImage,
@@ -469,13 +477,39 @@ class _LibraryScreenState extends State<LibraryScreen> {
             onChanged: (v) => setState(() { _selectedCategory = v!; _dynamicColor = _getCategoryColor(v); }),
             decoration: const InputDecoration(labelText: 'Category', isDense: true),
           ),
+          const SizedBox(height: 16),
+
+          // 🚨 J.A.R.V.I.S: INI KOTAK PREDICTIVE TAGGING
+          const Text('Predictive Tagging', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          const SizedBox(height: 8),
+          TextField(
+              controller: _tagsController,
+              decoration: const InputDecoration(
+                  hintText: 'e.g. Spicy, Sambal (Comma separated)',
+                  prefixIcon: Icon(Icons.tag)
+              )
+          ),
+
           const SizedBox(height: 12),
           SwitchListTile(
             title: const Text('Public Access?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
             value: _shareWithCommunity,
             onChanged: (v) => setState(() => _shareWithCommunity = v),
           ),
-          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _isLoading ? null : _addPictogramToFirebase, child: const Text('Store in Cloud Library'))),
+          SizedBox(width: double.infinity, child: ElevatedButton(
+              onPressed: _isLoading ? null : () {
+                // 🚨 Proses Tags sebelum hantar!
+                List<String> finalTags = _tagsController.text
+                    .split(',')
+                    .map((e) => e.trim().toLowerCase())
+                    .where((e) => e.isNotEmpty)
+                    .toList();
+
+                // Hantar! (Kau kena update _addPictogramToFirebase terima finalTags ni)
+                _addPictogramToFirebase(finalTags);
+              },
+              child: const Text('Store in Cloud Library')
+          )),
         ],
       ),
     );

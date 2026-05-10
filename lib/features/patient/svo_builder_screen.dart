@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -28,14 +30,49 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
   List<String> dynamicSuggestions = [];
   String _activeCategory = 'Subject';
 
+  String _detectMood(List<Pictogram> sentence) {
+    // 🚨 J.A.R.V.I.S: Scan kategori piktogram dlm ayat
+    bool hasEmergency = sentence.any((p) => p.category == 'Emergency');
+    bool hasPain = sentence.any((p) => p.labelEn.toLowerCase() == 'pain' || p.category == 'Hygiene');
+    bool hasHappy = sentence.any((p) => p.labelEn.toLowerCase() == 'happy' || p.category == 'Play');
+
+    if (hasEmergency || hasPain) {
+      return "DISTRESSED"; // 🚨 Merah/Bahaya
+    } else if (hasHappy) {
+      return "GOOD";       // 😊 Hijau/Gembira
+    } else {
+      return "NEUTRAL";    // 😐 Biru/Biasa
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    // 🚨 J.A.R.V.I.S: Refresh data lokal
     SyncService().syncFromFirebase().then((_) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        _updateSuggestions(); // 🚨 Panggil ni lepas siap sync!
+      }
     });
-    _updateSuggestions();
+  }
+
+  void _updateSuggestions() async {
+    List<String> tagsToMatch = [];
+
+    // Kalau dah ada ayat, ambil tags dari piktogram terakhir
+    if (selectedSentence.isNotEmpty) {
+      tagsToMatch = selectedSentence.last.tags;
+    }
+
+    // 🚨 J.A.R.V.I.S: Hantar List Tags, bukan String Label!
+    List<String> suggestions = await _predictionService.getSuggestions(tagsToMatch, _activeCategory);
+
+    if (mounted) {
+      setState(() {
+        dynamicSuggestions = suggestions;
+      });
+      // DEBUG: Tengok kat terminal keluar tak cadangan tu
+      print("J.A.R.V.I.S: Cadangan baru dikesan -> $dynamicSuggestions");
+    }
   }
 
   // --- 1. THE ULTIMATE KEYWORD-TO-ICON MAPPER ---
@@ -286,23 +323,84 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
         : FaIcon(iconData, size: size, color: color);
   }
 
-  void _updateSuggestions() async {
-    String currentWord = "";
-    if (selectedSentence.isNotEmpty) {
-      currentWord = "${selectedSentence.last.labelEn} / ${selectedSentence.last.labelMs}";
-    }
-    List<String> suggestions = await _predictionService.getSuggestions(currentWord, _activeCategory);
-    if (mounted) setState(() => dynamicSuggestions = suggestions);
-  }
-
   void _handleWordSelection(Pictogram pic) {
     setState(() {
       selectedSentence.add(pic);
-      // 🚨 Auto-Progression Logic
-      if (_activeCategory == 'Subject') _activeCategory = 'Verb';
-      else if (_activeCategory == 'Verb') _activeCategory = 'Object';
+
+      // 🚨 J.A.R.V.I.S: Protokol Aliran Minda (Multi-Category Auto-Jump)
+      // Kita teka kategori seterusnya berdasarkan apa yang Azrul baru tekan.
+      switch (pic.category) {
+        case 'Question':
+          _activeCategory = 'Subject'; // e.g. "Where" -> "I / You"
+          break;
+        case 'Subject':
+          _activeCategory = 'Verb';    // e.g. "I" -> "Want / Eat"
+          break;
+        case 'Verb':
+        // Lepas Verb selalunya Object (Makan Nasi)
+        // tapi boleh jadi Adjective (Rasa Gembira)
+          _activeCategory = 'Object';
+          break;
+        case 'Object':
+          _activeCategory = 'Adjective'; // e.g. "Pizza" -> "Hot / Delicious"
+          break;
+        case 'Adjective':
+          _activeCategory = 'Time';      // e.g. "Happy" -> "Now / Today"
+          break;
+        case 'Emergency':
+        case 'Hygiene':
+          _activeCategory = 'Verb';      // e.g. "Toilet" -> "Want / Go"
+          break;
+        case 'Time':
+          _activeCategory = 'Others';    // e.g. "Now" -> "In House"
+          break;
+        default:
+          _activeCategory = 'Object';    // Fallback kalau tak tahu nak pergi mana
+      }
     });
+
+    // 🚨 J.A.R.V.I.S: REKOD MEMORI (AI BELAJAR TABIAT)
+    // Setiap kali klik, kita tambah frequency supaya AI tahu Azrul suka piktogram ni.
+    _localDB.incrementFrequency(pic.id);
+
+    // 🚨 UPDATE RAMALAN (BAR KUNING)
     _updateSuggestions();
+  }
+
+  // 🚨 J.A.R.V.I.S: Fungsi untuk tangkap perkataan bila user tekan cadangan AI
+  void _addFromSuggestion(String labelEn) async {
+    // Kita cari piktogram tu dalam database lokal (berdasarkan kategori aktif)
+    final dataList = await _localDB.getPictogramsByCategory(_activeCategory);
+
+    // Cari data yang sama nama dengan apa yang ditekan
+    final match = dataList.firstWhere(
+            (p) => (p['label_en'] ?? '').toString().toLowerCase() == labelEn.toLowerCase(),
+        orElse: () => {}
+    );
+
+    if (match.isNotEmpty) {
+      final pic = Pictogram(
+        id: match['id'] ?? '',
+        labelEn: match['label_en'] ?? '',
+        labelMs: match['label_ms'] ?? '',
+        category: match['category'] ?? 'Others',
+        imageUrl: match['image_url'] ?? '',
+        ownerId: match['ownerId'] ?? 'GLOBAL',
+        // 🚨 J.A.R.V.I.S: Jangan lupa tags kat sini jugak!
+        tags: match['tags'] != null
+            ? match['tags'].toString().split(',').map((e) => e.trim()).toList()
+            : [],
+        createdAt: DateTime.now(),
+      );
+      _handleWordSelection(pic); // 👈 Tembak masuk dalam kotak Lego!
+    } else {
+      // Kalau tak jumpa dalam lokal (mungkin belum sync)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('J.A.R.V.I.S: Ikon $labelEn tiada dalam memori. Sila Sync di Library!'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
@@ -318,10 +416,18 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
       body: Column(
         children: [
           _buildSosBar(),
+
+          // 1. Kotak Lego (Ayat yang sedang dibina)
           _buildLegoSvoDisplay(),
+
+          // 🚨 J.A.R.V.I.S: PASANG HUD PREDICTIVE KAT SINI!
+          // Benda ni akan muncul automatik bila ada cadangan
           _buildSuggestedWordsBar(),
+
+          // 2. Tab Kategori (Subject, Verb, Object, dll)
           _buildCategoryTabs(),
 
+          // 3. Grid Ikon (Pilihan Piktogram)
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -342,6 +448,10 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
                     category: map['category'] ?? 'Others',
                     imageUrl: map['image_url'] ?? '',
                     ownerId: map['ownerId'] ?? 'GLOBAL',
+                    // Ambil tags dari SQLite
+                    tags: map['tags'] != null
+                        ? map['tags'].toString().split(',').map((e) => e.trim()).toList()
+                        : [],
                     createdAt: DateTime.now(),
                   )).toList();
 
@@ -356,6 +466,8 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
               ),
             ),
           ),
+
+          // 4. Butang Speak (Tukarkan ayat ke suara)
           _buildSpeakButton(),
         ],
       ),
@@ -505,22 +617,31 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
     ),
   );
 
-  Widget _buildSuggestedWordsBar() => Container(
-    width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: dynamicSuggestions.map((label) => Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: ActionChip(
-            label: Text(label.split(' / ')[0], style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue)),
-            backgroundColor: Colors.white,
-            onPressed: () {},
-          ),
-        )).toList(),
+  // 🚨 J.A.R.V.I.S: UI Predictive Tagging (Dah di-upgrade)
+  Widget _buildSuggestedWordsBar() {
+    if (dynamicSuggestions.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      height: 50,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: dynamicSuggestions.length,
+        itemBuilder: (context, index) {
+          String labelEn = dynamicSuggestions[index].split(' / ')[0];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ActionChip(
+              avatar: const Icon(Icons.auto_awesome, size: 14, color: Colors.amber),
+              label: Text(labelEn, style: const TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () => _addFromSuggestion(labelEn), // 👈 Fungsi baru
+            ),
+          );
+        },
       ),
-    ),
-  );
+    );
+  }
 
   // --- 4. GRID BUTTONS (VERSI XL) ---
   Widget _buildLargeIconButton(Pictogram pic) {
@@ -557,8 +678,33 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
         width: double.infinity, height: 60,
         child: ElevatedButton.icon(
           onPressed: selectedSentence.isEmpty ? null : () async {
-            String sentenceEn = selectedSentence.map((pic) => pic.labelEn).join(" ");
+            String sentenceEn = selectedSentence.map((p) => p.labelEn).join(" ");
+            String currentMood = _detectMood(selectedSentence);
+            String? currentUid = FirebaseAuth.instance.currentUser?.uid;
+
+            // 1. Suara bunyi (TTS)
             await _ttsService.speak(sentenceEn, lang: "en-US");
+
+            // 2. 🚨 J.A.R.V.I.S: Hantar log ke Firebase untuk Dashboard Penjaga
+            try {
+              await FirebaseFirestore.instance.collection('usage_logs').add({
+                'userId': currentUid ?? 'GUEST',
+                'phrase': sentenceEn,
+                'mood': currentMood,
+                'timestamp': FieldValue.serverTimestamp(),
+                'last_object': selectedSentence.last.labelEn, // Untuk graf "Most Frequent"
+                'category_flow': selectedSentence.map((p) => p.category).toList(),
+              });
+
+              // 3. Simpan Local (Update frequency piktogram)
+              for (var pic in selectedSentence) {
+                await _localDB.incrementFrequency(pic.id);
+              }
+
+              print("J.A.R.V.I.S: Log dihantar. Mood: $currentMood");
+            } catch (e) {
+              print("Error hantar log babi: $e");
+            }
           },
           icon: const Icon(Icons.volume_up, color: Colors.white),
           label: const Text('Speak Sentence', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),

@@ -38,13 +38,21 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
       try {
         final doc = await FirebaseFirestore.instance.collection('caregivers').doc(user.uid).get();
         if (doc.exists && doc.data() != null) {
-          setState(() => _patientName = doc.data()!['patientName'] ?? "Unknown Patient");
+          setState(() {
+            // Kita guna '??' kalau field patientName tu tak wujud dalam dokumen tu.
+            _patientName = doc.data()!['patientName'] ?? "Patient Name Not Set";
+          });
         } else {
-          setState(() => _patientName = "Patient Not Set");
+          // Dokumen tak wujud langsung dalam Firestore
+          setState(() => _patientName = "No Profile Found");
+          print("J.A.R.V.I.S [WARNING]: Dokumen UID ${user.uid} tiada dalam collection 'caregivers'");
         }
       } catch (e) {
-        setState(() => _patientName = "Error Loading");
+        setState(() => _patientName = "Connection Error");
+        print("J.A.R.V.I.S [ERROR FETCHING PATIENT]: $e"); // 🚨 Buka terminal, baca error ni!
       }
+    } else {
+      setState(() => _patientName = "Guest Mode");
     }
   }
 
@@ -102,13 +110,6 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
           ],
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-            onPressed: () => _showSignOutDialog(context),
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: pages[_selectedIndex], // Guna variable baru tanpa underscore
       bottomNavigationBar: BottomNavigationBar(

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'local_db.dart'; // Import peti besi kita tadi
+import 'local_db.dart';
 
 class SyncService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -9,35 +9,37 @@ class SyncService {
 
   Future<void> syncFromFirebase() async {
     try {
-      // 1. Semak siapa yang tengah pegang fon ni
       User? user = _auth.currentUser;
-      String currentUid = user?.uid ?? 'NONE';
+      // Kalau tak login, kita anggap dia 'GUEST'
+      String currentUid = user?.uid ?? 'GUEST_USER';
 
-      print("J.A.R.V.I.S: Mengaktifkan Lintah Awan! (Mode UID: $currentUid)...");
+      print("J.A.R.V.I.S: Protokol Auto-Purge diaktifkan untuk $currentUid...");
 
-      // 2. Tarik data dari collection BARU 'library_v2'
-      // Hanya tarik 'GLOBAL' dan hak milik sendiri (UID)
+      // 🚨 1. NUCLEAR RESET AUTOMATIK!
+      // Kita cuci dulu SQLite sebelum sedut data baru.
+      await _localDB.deleteAllPictograms();
+
+      // 2. Tarik data dari Firebase
+      // Rule: Ambil 'GLOBAL' (untuk semua) + UID sendiri (untuk private)
       QuerySnapshot snapshot = await _firestore
-          .collection('library_v2') // 🚨 KITA PAKAI COLLECTION BARU!
+          .collection('library_v2')
           .where('ownerId', whereIn: ['GLOBAL', currentUid])
           .get();
 
       if (snapshot.docs.isEmpty) {
-        print("J.A.R.V.I.S: Awan kosong, tiada benda nak disedut.");
+        print("J.A.R.V.I.S: Awan kosong atau tiada akses.");
         return;
       }
 
-      // 3. Sumbat semua data tu ke dalam perut SQLite
-      int count = 0;
+      // 3. Sumbat data baru
       for (var doc in snapshot.docs) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         await _localDB.insertOrUpdatePictogram(data, doc.id);
-        count++;
       }
 
-      print("J.A.R.V.I.S: Syncing selesai! Berjaya merompak $count data masuk ke fon.");
+      print("J.A.R.V.I.S: Sync selesai. Data kini bersih & spesifik untuk user.");
     } catch (e) {
-      print("J.A.R.V.I.S: ERROR MASA SYNCING SIAL! -> $e");
+      print("J.A.R.V.I.S: Sync Gagal! -> $e");
     }
   }
 }

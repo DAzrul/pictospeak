@@ -35,27 +35,28 @@ class DatabaseService {
   }
 
   // --- 2. TAMBAH PIKTOGRAM (PRIVATE & COMMUNITY) ---
-  Future<void> addPictogram(String en, String ms, String cat, String img, {bool isPublic = false}) async {
+  Future<void> addPictogram(String en, String ms, String cat, String img, List<String> tags, {bool isPublic = false}) async {
     try {
       String currentUid = _auth.currentUser!.uid;
 
-      // 1. Simpan dalam library_v2 (Harta Sendiri)
       await _db.collection('library_v2').add({
         'label_en': en,
         'label_ms': ms,
         'category': cat,
-        'image_url': img, // Boleh jadi CodePoint icon ATAU URL gambar Storage
+        'image_url': img,
+        'tags': tags, // 🚨 SIMPAN TAGS (Private)
         'ownerId': currentUid,
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // 2. Kalau user nak share, hantar ke community_submissions untuk Admin review
+      // 2. Kalau user nak share, hantar ke community_submissions
       if (isPublic) {
         await _db.collection('community_submissions').add({
           'label_en': en,
           'label_ms': ms,
           'category': cat,
           'image_url': img,
+          'tags': tags, // 🚨 INI YANG BOCOR TADI! Kena hantar tags kat admin jugak!
           'submittedBy': currentUid,
           'status': 'pending',
           'timestamp': FieldValue.serverTimestamp(),
@@ -69,14 +70,21 @@ class DatabaseService {
 
   // --- 3. AMBIL SEMUA DATA (LIBRARY EXPLORER) ---
   Stream<List<Pictogram>> getAllPictograms() {
-    String currentUid = _auth.currentUser?.uid ?? 'NONE';
+    String? currentUid = FirebaseAuth.instance.currentUser?.uid;
 
-    return _db
-        .collection('library_v2')
-        .where('ownerId', whereIn: ['GLOBAL', currentUid]) // Ambil hak sendiri & hak GLOBAL
-        .snapshots()
-        .map((snapshot) =>
-        snapshot.docs.map((doc) => Pictogram.fromFirestore(doc)).toList());
+    if (currentUid == null) {
+      // Kalau GUEST (tak login), tayang GLOBAL je
+      return _db.collection('library_v2')
+          .where('ownerId', isEqualTo: 'GLOBAL')
+          .snapshots()
+          .map((snap) => snap.docs.map((doc) => Pictogram.fromFirestore(doc)).toList());
+    } else {
+      // Kalau dah login, tayang GLOBAL + Hak Milik Sendiri
+      return _db.collection('library_v2')
+          .where('ownerId', whereIn: ['GLOBAL', currentUid])
+          .snapshots()
+          .map((snap) => snap.docs.map((doc) => Pictogram.fromFirestore(doc)).toList());
+    }
   }
 
   // --- 4. FUNGSI PADAM (TERMINATE DATA) ---
@@ -98,7 +106,8 @@ class DatabaseService {
         'label_ms': data['label_ms'],
         'category': data['category'],
         'image_url': data['image_url'],
-        'ownerId': 'GLOBAL', // 🚨 Supaya semua user boleh nampak
+        'tags': data.containsKey('tags') ? data['tags'] : [], // 🚨 SALIN TAGS SEKALI MASA APPROVE!
+        'ownerId': 'GLOBAL', // Supaya semua user boleh nampak
         'timestamp': FieldValue.serverTimestamp(),
       });
 
