@@ -135,7 +135,7 @@ class SplashScreen extends StatelessWidget {
               right: 0,
               child: Column(
                 children: [
-                  Text('Version 1.3.10', style: TextStyle(fontSize: 12, color: Colors.blueGrey[300])),
+                  Text('Version 1.3.12', style: TextStyle(fontSize: 12, color: Colors.blueGrey[300])),
                   const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,

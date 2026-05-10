@@ -247,71 +247,43 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
     return _mapAiStringToIcon(pic.labelEn.toLowerCase());
   }
 
+  // --- 2. RENDERER (Dah support gambar besar) ---
   Widget _renderSmartIcon(String imageUrl, double size, Color color, String label) {
-    // 1. Check kalau itu URL Gambar (Mula dengan http)
     if (imageUrl.startsWith('http')) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(12), // Kasi rounded sikit baru style
+        borderRadius: BorderRadius.circular(15),
         child: Image.network(
           imageUrl,
-          width: size,
-          height: size,
+          width: size, height: size,
           fit: BoxFit.cover,
-          // 🚨 J.A.R.V.I.S: Fallback kalau internet mati masa tengah loading
-          errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, size: size, color: color),
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return SizedBox(
-              width: size, height: size,
-              child: Center(child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                    : null,
-                strokeWidth: 2,
-              )),
-            );
-          },
+          errorBuilder: (ctx, err, stack) => Icon(Icons.broken_image, size: size, color: color),
         ),
       );
     }
 
-    // 2. Check kalau itu Material Icon (CodePoint nombor)
     int? codePoint = int.tryParse(imageUrl);
     if (codePoint != null) {
       return Icon(IconData(codePoint, fontFamily: 'MaterialIcons'), size: size, color: color);
     }
 
-    // 3. Last Resort: Guna AI Mapping (Keyword)
     dynamic iconData = _mapAiStringToIcon(imageUrl.isNotEmpty ? imageUrl : label);
 
-    // Kalau dapat puzzle (tak jumpa), guna Ghost Vision (Huruf Pertama)
     if (iconData == Icons.extension) {
       return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          shape: BoxShape.circle,
-        ),
+        width: size, height: size,
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
         child: Center(
           child: Text(
             label.isNotEmpty ? label[0].toUpperCase() : '?',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: size * 0.5,
-            ),
+            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: size * 0.5),
           ),
         ),
       );
     }
 
-    // Render Icon (Material atau FontAwesome)
-    if (iconData is IconData) {
-      return Icon(iconData, size: size, color: color);
-    } else {
-      return FaIcon(iconData, size: size, color: color);
-    }
+    return iconData is IconData
+        ? Icon(iconData, size: size, color: color)
+        : FaIcon(iconData, size: size, color: color);
   }
 
   void _updateSuggestions() async {
@@ -475,7 +447,7 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   // 🚨 Tayang gambar/icon dalam lego!
-                                  _renderSmartIcon(selectedSentence[index].imageUrl, 28, textColor, selectedSentence[index].labelEn),
+                                  _renderSmartIcon(selectedSentence[index].imageUrl, 32, textColor, selectedSentence[index].labelEn),
                                   const SizedBox(height: 4),
                                   Text(val!, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 10), textAlign: TextAlign.center),
                                 ],
@@ -550,22 +522,30 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
     ),
   );
 
+  // --- 4. GRID BUTTONS (VERSI XL) ---
   Widget _buildLargeIconButton(Pictogram pic) {
     Color catColor = _getCategoryColor(pic.category);
     return InkWell(
       onTap: () => _handleWordSelection(pic),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(25),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: catColor.withValues(alpha: 0.1), width: 2),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: catColor.withValues(alpha: 0.1), width: 3), // Border tebal sikit
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
         ),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          _renderSmartIcon(pic.imageUrl, 36, catColor, pic.labelEn),
-          const SizedBox(height: 10),
-          Text(pic.labelEn, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center),
-          Text(pic.labelMs, style: TextStyle(fontSize: 10, color: Colors.grey[500]), textAlign: TextAlign.center),
-        ]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _renderSmartIcon(pic.imageUrl, 50, catColor, pic.labelEn), // 🚨 ICON BESAR! (Asal 36)
+            const SizedBox(height: 12),
+            Text(pic.labelEn,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.center),
+            Text(pic.labelMs,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500), textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }
@@ -594,14 +574,16 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
   );
 }
 
-// 🧩 PUZZLE CLIPPER
+// 🧩 PUZZLE CLIPPER (Slightly Scaled)
 class PuzzleClipper extends CustomClipper<Path> {
   final bool isFirst; final bool isLast;
   PuzzleClipper({this.isFirst = false, this.isLast = false});
   @override
   Path getClip(Size size) {
     final path = Path();
-    final double tabWidth = 15.0; final double tabHeight = 25.0; final double radius = 12.0;
+    final double tabWidth = 20.0; // 🚨 NAIK!
+    final double tabHeight = 35.0; // 🚨 NAIK!
+    final double radius = 15.0; // 🚨 NAIK!
     path.moveTo(radius, 0);
     path.lineTo(size.width - (isLast ? 0 : tabWidth) - radius, 0);
     path.arcToPoint(Offset(size.width - (isLast ? 0 : tabWidth), radius), radius: Radius.circular(radius));
