@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 // 🚨 J.A.R.V.I.S: Import lintah & enjin utama
@@ -48,35 +50,37 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
   @override
   void initState() {
     super.initState();
-    // 🚨 J.A.R.V.I.S: Tak payah panggil Firebase atau check SQLite dah.
-    // Splash Screen dah siapkan semua data! Kita terus pecut je babi!
-    _updateSuggestions();
+    _bulletproofInit();
   }
 
-  // 🚨 PADAM TERUS fungsi _checkAndInitData() yang panjang tu. Tak guna dah!
-  // 🚨 FUNGSI BARU: Cek memori sebelum buat keputusan
-  Future<void> _checkAndInitData() async {
-    // 1. Cek dulu, ada tak piktogram GLOBAL dlm SQLite?
+  // 🚨 J.A.R.V.I.S: Sistem Sandaran Kecemasan (Fail-Safe)
+  Future<void> _bulletproofInit() async {
     final existingData = await _localDB.getPictogramsByCategory('Subject');
 
+    // Kalau laci kosong (sebab user tekan butang laju sangat kat Splash Screen)
     if (existingData.isEmpty) {
-      print("J.A.R.V.I.S: Guest Mode dikesan. Sedang sedut piktogram GLOBAL...");
+      print("J.A.R.V.I.S: Bos masuk awal sangat! Memuatkan peluru JSON sekarang...");
+      try {
+        String jsonString = await rootBundle.loadString('assets/global_icons.json');
+        List<dynamic> jsonData = jsonDecode(jsonString);
 
-      if (mounted) setState(() => _activeCategory = 'Loading...'); // Kasih signal loading
-
-      // 2. Paksa sedut dari Firebase (Rules Bilik 1 benarkan Guest baca GLOBAL)
-      await SyncService().syncFromFirebase();
-
-      print("J.A.R.V.I.S: Data GLOBAL dah mendarat dlm SQLite!");
+        for (var item in jsonData) {
+          Map<String, dynamic> dataMap = item as Map<String, dynamic>;
+          await _localDB.insertOrUpdatePictogram(dataMap, dataMap['id']);
+        }
+        print("J.A.R.V.I.S: Peluru JSON berjaya diisi di medan perang!");
+      } catch (e) {
+        print("J.A.R.V.I.S [ERROR]: Fail JSON tak wujud atau salah format babi! -> $e");
+      }
     }
 
     if (mounted) {
-      setState(() {
-        _activeCategory = 'Subject'; // Set balik kategori lepas siap
-      });
-      _updateSuggestions();
+      setState(() {}); // 🚨 Paksa skrin tembak UI baru
+      _updateSuggestions(); // Update bar kuning
     }
   }
+
+
 
   void _updateSuggestions() async {
     List<String> tagsToMatch = [];

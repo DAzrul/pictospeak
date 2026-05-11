@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
+
 import '../../core/theme/app_theme.dart';
-import '../../core/services/sync_service.dart'; // 🚨 J.A.R.V.I.S: Kejutkan lintah kat sini
+import '../../core/services/sync_service.dart';
+import '../../core/services/local_db.dart'; // 🚨 J.A.R.V.I.S: Wajib panggil storan lokal
 import '../caregiver/caregiver_dashboard.dart';
 import 'login_screen.dart';
 import '../patient/quick_needs_screen.dart';
 
-// 🚨 Tukar jadi StatefulWidget supaya kita boleh pasang "Enjin Boot-up" (initState)
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -15,18 +18,51 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  final LocalDB _localDB = LocalDB(); // Enjin SQLite
 
   @override
   void initState() {
     super.initState();
-    // 🚨 GHOST PROTOCOL: Sebaik saja app buka, sedut data senyap-senyap!
+    // 🚨 GHOST PROTOCOL: Aktif!
     _silentPreFetch();
   }
 
   Future<void> _silentPreFetch() async {
-    print("J.A.R.V.I.S: Ghost Protocol diaktifkan. Sedang curi data dari Awan ke dalam SQLite...");
-    await SyncService().syncFromFirebase();
-    print("J.A.R.V.I.S: Peluru dah penuh dalam chamber. Menunggu arahan bos!");
+    print("J.A.R.V.I.S: Ghost Protocol diaktifkan. Memeriksa status memori lokal...");
+
+    try {
+      // 1. Check kalau SQLite kosong (Tengok laci Subject)
+      final existingData = await _localDB.getPictogramsByCategory('Subject');
+
+      if (existingData.isEmpty) {
+        print("J.A.R.V.I.S: SQLite Kosong babi! (First Install). Memulakan suntikan JSON...");
+
+        // Buka fail JSON yang kita seludup
+        String jsonString = await rootBundle.loadString('assets/global_icons.json');
+        List<dynamic> jsonData = jsonDecode(jsonString);
+
+        // Sumbat masuk SQLite satu persatu
+        for (var item in jsonData) {
+          Map<String, dynamic> dataMap = item as Map<String, dynamic>;
+          await _localDB.insertOrUpdatePictogram(dataMap, dataMap['id']);
+        }
+        print("J.A.R.V.I.S: Suntikan JSON berjaya! Suit kini sedia bertempur secara OFFLINE.");
+      } else {
+        print("J.A.R.V.I.S: Data lokal dah sedia ada. Abaikan suntikan JSON.");
+      }
+    } catch (e) {
+      print("J.A.R.V.I.S: Gagal baca JSON babi! -> $e");
+    }
+
+    // 2. Try sedut dari Awan (Firebase) kalau ada internet
+    try {
+      print("J.A.R.V.I.S: Mencuba sambungan Awan (Firebase)...");
+      await SyncService().syncFromFirebase();
+    } catch (e) {
+      print("J.A.R.V.I.S: Awan tak dapat diakses. Takpe, kita pakai peluru lokal!");
+    }
+
+    print("J.A.R.V.I.S: Boot sequence selesai. Menunggu arahan bos!");
   }
 
   @override
@@ -43,7 +79,6 @@ class _SplashScreenState extends State<SplashScreen> {
               child: IconButton(
                 icon: const Icon(Icons.settings_outlined, color: Colors.grey, size: 28),
                 onPressed: () {
-                  // 🚨 J.A.R.V.I.S: Check pintu dulu!
                   if (FirebaseAuth.instance.currentUser != null) {
                     Navigator.push(
                       context,
@@ -109,9 +144,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       height: 60,
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          // 🚨 J.A.R.V.I.S: Tak payah letak SyncService kat sini dah!
-                          // Benda tu dah jalan kat background (initState).
-                          // Tekan butang ni, app terus terbang masuk tanpa lag!
+                          // 🚨 Tak payah tunggu apa-apa, langgar je masuk terus!
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(builder: (context) => QuickNeedsScreen()),
@@ -140,14 +173,14 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
 
-            // Footer (PDPA)
+            // Footer
             Positioned(
               bottom: 24,
               left: 0,
               right: 0,
               child: Column(
                 children: [
-                  Text('Version 1.3.17', style: TextStyle(fontSize: 12, color: Colors.blueGrey[300])),
+                  Text('Version 1.3.18', style: TextStyle(fontSize: 12, color: Colors.blueGrey[300])),
                   const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
