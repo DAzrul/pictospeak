@@ -102,3 +102,4 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/pictospeak.png
+    - assets/global_icons.json

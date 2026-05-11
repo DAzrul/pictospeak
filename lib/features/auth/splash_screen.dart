@@ -6,8 +6,28 @@ import '../caregiver/caregiver_dashboard.dart';
 import 'login_screen.dart';
 import '../patient/quick_needs_screen.dart';
 
-class SplashScreen extends StatelessWidget {
+// 🚨 Tukar jadi StatefulWidget supaya kita boleh pasang "Enjin Boot-up" (initState)
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+    // 🚨 GHOST PROTOCOL: Sebaik saja app buka, sedut data senyap-senyap!
+    _silentPreFetch();
+  }
+
+  Future<void> _silentPreFetch() async {
+    print("J.A.R.V.I.S: Ghost Protocol diaktifkan. Sedang curi data dari Awan ke dalam SQLite...");
+    await SyncService().syncFromFirebase();
+    print("J.A.R.V.I.S: Peluru dah penuh dalam chamber. Menunggu arahan bos!");
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,15 +44,12 @@ class SplashScreen extends StatelessWidget {
                 icon: const Icon(Icons.settings_outlined, color: Colors.grey, size: 28),
                 onPressed: () {
                   // 🚨 J.A.R.V.I.S: Check pintu dulu!
-                  // Kalau FirebaseAuth ada data currentUser, maksudnya belum logout.
                   if (FirebaseAuth.instance.currentUser != null) {
-                    // Terus masuk Dashboard, tak payah login
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
                     );
                   } else {
-                    // Kalau takde, baru hantar ke skrin Login
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -48,7 +65,7 @@ class SplashScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo PictoSpeak (Kekalkan UI lawa kau)
+                    // Logo PictoSpeak
                     Container(
                       height: 180,
                       width: 180,
@@ -56,7 +73,7 @@ class SplashScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(40),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryBlue.withValues(alpha: 0.3), // 🚨 Pakai withValues
+                            color: AppTheme.primaryBlue.withValues(alpha: 0.3),
                             blurRadius: 20,
                             offset: const Offset(0, 10),
                           ),
@@ -92,14 +109,9 @@ class SplashScreen extends StatelessWidget {
                       height: 60,
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          // 🚨 1. KEJUTKAN LINTAH AWAN
-                          // Walaupun user 'tak login' secara manual, Firebase Auth
-                          // selalunya simpan session Caregiver yang lepas.
-                          SyncService().syncFromFirebase();
-
-                          // 🚨 2. GUNA pushReplacement
-                          // Ini ubat supaya bila budak tu dah masuk QuickNeeds,
-                          // dia tak boleh 'back' balik ke skrin Splash ni.
+                          // 🚨 J.A.R.V.I.S: Tak payah letak SyncService kat sini dah!
+                          // Benda tu dah jalan kat background (initState).
+                          // Tekan butang ni, app terus terbang masuk tanpa lag!
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(builder: (context) => QuickNeedsScreen()),
@@ -128,7 +140,7 @@ class SplashScreen extends StatelessWidget {
               ),
             ),
 
-            // Footer (Kekalkan PDPA kau tu, nampak legit sikit PSM)
+            // Footer (PDPA)
             Positioned(
               bottom: 24,
               left: 0,

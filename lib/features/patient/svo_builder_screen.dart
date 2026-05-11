@@ -48,11 +48,34 @@ class _SvoBuilderScreenState extends State<SvoBuilderScreen> {
   @override
   void initState() {
     super.initState();
-    SyncService().syncFromFirebase().then((_) {
-      if (mounted) {
-        _updateSuggestions(); // 🚨 Panggil ni lepas siap sync!
-      }
-    });
+    // 🚨 J.A.R.V.I.S: Tak payah panggil Firebase atau check SQLite dah.
+    // Splash Screen dah siapkan semua data! Kita terus pecut je babi!
+    _updateSuggestions();
+  }
+
+  // 🚨 PADAM TERUS fungsi _checkAndInitData() yang panjang tu. Tak guna dah!
+  // 🚨 FUNGSI BARU: Cek memori sebelum buat keputusan
+  Future<void> _checkAndInitData() async {
+    // 1. Cek dulu, ada tak piktogram GLOBAL dlm SQLite?
+    final existingData = await _localDB.getPictogramsByCategory('Subject');
+
+    if (existingData.isEmpty) {
+      print("J.A.R.V.I.S: Guest Mode dikesan. Sedang sedut piktogram GLOBAL...");
+
+      if (mounted) setState(() => _activeCategory = 'Loading...'); // Kasih signal loading
+
+      // 2. Paksa sedut dari Firebase (Rules Bilik 1 benarkan Guest baca GLOBAL)
+      await SyncService().syncFromFirebase();
+
+      print("J.A.R.V.I.S: Data GLOBAL dah mendarat dlm SQLite!");
+    }
+
+    if (mounted) {
+      setState(() {
+        _activeCategory = 'Subject'; // Set balik kategori lepas siap
+      });
+      _updateSuggestions();
+    }
   }
 
   void _updateSuggestions() async {
