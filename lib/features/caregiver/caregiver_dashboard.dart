@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pictospeak/features/caregiver/patient_details_screen.dart';
 import '../../core/theme/app_theme.dart';
-import '../auth/splash_screen.dart';
+import '../auth/patient_pin_screen.dart';
+import '../auth/services/auth_service.dart';
+import '../auth/role_selection_screen.dart'; // Import untuk litar logout/switch
+import 'add_patient_screen.dart';
 import 'library_screen.dart';
-import 'security_screen.dart';
 import 'settings_screen.dart';
+import 'package:audioplayers/audioplayers.dart'; // 🚀 Import ni kat atas sekali
 
 class CaregiverDashboard extends StatefulWidget {
   const CaregiverDashboard({super.key});
@@ -16,43 +19,108 @@ class CaregiverDashboard extends StatefulWidget {
 }
 
 class _CaregiverDashboardState extends State<CaregiverDashboard> {
-  String _patientName = "Loading...";
-  String? _patientId; // 🚨 J.A.R.V.I.S: Kita perlukan UID pesakit, bukan UID kita!
   int _selectedIndex = 0;
+  final AuthService _authService = AuthService();
+
+  // 🚨 J.A.R.V.I.S: Enjin Bunyi Siren
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isSosActive = false; // Supaya pop-up tak keluar bertindih
 
   @override
   void initState() {
     super.initState();
-    _fetchProfileData();
+    _startSosRadar(); // 🚀 Hidupkan radar masa Dashboard dibuka!
   }
 
-  // 🚨 J.A.R.V.I.S: Ambil data profile Caregiver & ID Pesakit
-  Future<void> _fetchProfileData() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        final doc = await FirebaseFirestore.instance.collection('caregivers').doc(user.uid).get();
-        if (doc.exists && doc.data() != null) {
-          setState(() {
-            _patientName = doc.data()!['patientName'] ?? "Unknown";
-            _patientId = doc.data()!['patientId'] ?? user.uid; // Fallback ke UID sendiri kalau tak set
-          });
-        }
-      } catch (e) {
-        print("J.A.R.V.I.S [ERROR]: $e");
+  // 🚨 LITAR RADAR SOS
+  void _startSosRadar() {
+    FirebaseFirestore.instance
+        .collection('sos_alerts')
+        .where('status', isEqualTo: 'ACTIVE')
+        .snapshots()
+        .listen((snapshot) {
+
+      // Kalau ada dokumen SOS baru yang berstatus 'ACTIVE'
+      if (snapshot.docs.isNotEmpty && !_isSosActive) {
+        final data = snapshot.docs.first.data();
+        final docId = snapshot.docs.first.id;
+
+        _triggerSosAlarm(data['patient_name'], docId);
       }
-    }
+    });
   }
 
+  // 🚨 LITAR PENGGERA & POP-UP
+  void _triggerSosAlarm(String patientName, String docId) async {
+    setState(() => _isSosActive = true);
+
+    // Bunyikan Siren (Pastikan kau dah letak fail mp3 dlm folder assets)
+    // Kalau takde file mp3 lagi, litar ni akan senyap je tapi pop-up tetap keluar
+    try {
+      await _audioPlayer.setReleaseMode(ReleaseMode.loop); // Bunyi non-stop
+      await _audioPlayer.play(AssetSource('sounds/siren.mp3'));
+    } catch (e) {
+      print("Siren tak jumpa : $e");
+    }
+
+    if (!mounted) return;
+
+    // Tembak Pop-up Merah Gergasi kat muka Penjaga
+    showDialog(
+        context: context,
+        barrierDismissible: false, // Tak boleh tutup selagi tak tekan butang
+        builder: (context) {
+          return AlertDialog(
+            backgroundColor: Colors.red.shade600,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.white, size: 40),
+                SizedBox(width: 10),
+                Text("KECEMASAN SOS!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Text("Pesakit $patientName memerlukan bantuan segera!",
+                style: const TextStyle(color: Colors.white, fontSize: 18)),
+            actions: [
+              ElevatedButton(
+                onPressed: () async {
+                  // 1. Matikan bunyi
+                  await _audioPlayer.stop();
+
+                  // 2. Padam/Update status SOS dlm Firestore supaya tak jerit lagi
+                  await FirebaseFirestore.instance.collection('sos_alerts').doc(docId).update({
+                    'status': 'RESOLVED',
+                  });
+
+                  setState(() => _isSosActive = false);
+                  if (mounted) Navigator.pop(context); // Tutup dialog
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.red),
+                child: const Text("SAYA DATANG SEKARANG", style: TextStyle(fontWeight: FontWeight.bold)),
+              )
+            ],
+          );
+        }
+    );
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose(); // Matikan speaker bila tutup app
+    super.dispose();
+  }
+
+  // 🚀 J.A.R.V.I.S: Litar untuk tukar tab bawah
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
   @override
   Widget build(BuildContext context) {
+    // Susunan skrin untuk setiap tab
     final List<Widget> pages = [
-      _buildAnalyticsTab(),
-      const LibraryScreen(),
-      const SecurityScreen(),
-      const SettingsScreen(),
+      _buildPatientsListTab(), // Tab 0: Senarai Pesakit
+      const LibraryScreen(),    // Tab 1: Library Piktogram
+      const SettingsScreen(),   // Tab 2: Settings & Logout
     ];
 
     return Scaffold(
@@ -60,209 +128,215 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        // Tombol Switch Role (Bawa balik ke skrin depan tanpa logout kalau perlu)
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textDark, size: 20),
-          onPressed: () => Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const SplashScreen()), (route) => false),
+          icon: const Icon(Icons.swap_horiz_rounded, color: AppTheme.primaryBlue),
+          onPressed: () {
+            Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
+                    (route) => false
+            );
+          },
         ),
-        title: Column(
-          children: [
-            const Text('Caregiver Dashboard', style: TextStyle(color: AppTheme.textDark, fontSize: 16, fontWeight: FontWeight.bold)),
-            if (_selectedIndex == 0)
-              Text('Patient: $_patientName', style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500)),
-          ],
-        ),
+        title: const Text('PictoSpeak Dashboard',
+            style: TextStyle(color: AppTheme.textDark, fontSize: 18, fontWeight: FontWeight.bold)),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_none_rounded, color: Colors.grey),
+            onPressed: () {}, // Nanti boleh letak notifikasi alert pesakit
+          )
+        ],
       ),
+
       body: pages[_selectedIndex],
+
+      // 🚀 J.A.R.V.I.S: Butang Tambah Pesakit (Muncul hanya dlm tab Patients)
+      floatingActionButton: _selectedIndex == 0
+          ? FloatingActionButton(
+        backgroundColor: AppTheme.primaryBlue,
+        elevation: 4,
+        child: const Icon(Icons.person_add_alt_1_rounded, color: Colors.white),
+        onPressed: () {
+          Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AddPatientScreen())
+          );
+        },
+      )
+          : null,
+
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white,
         selectedItemColor: AppTheme.primaryBlue,
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor: Colors.grey.shade400,
+        showUnselectedLabels: true,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.insights), label: 'Analytics'),
-          BottomNavigationBarItem(icon: Icon(Icons.library_books_outlined), label: 'Library'),
-          BottomNavigationBarItem(icon: Icon(Icons.security_outlined), label: 'Security'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+          BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: 'Patients'),
+          BottomNavigationBarItem(icon: Icon(Icons.collections_bookmark_rounded), label: 'Library'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings_suggest_rounded), label: 'Settings'),
         ],
       ),
     );
   }
 
-  Widget _buildAnalyticsTab() {
-    // 🚨 J.A.R.V.I.S: Tunggu sampai _patientId dah ready baru sedut log
-    if (_patientId == null) return const Center(child: CircularProgressIndicator());
-
+  // --- TAB 0: LITAR SENARAI PESAKIT (LIVE STREAM) ---
+  Widget _buildPatientsListTab() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('usage_logs')
-          .where('userId', isEqualTo: _patientId) // 👈 Guna patientId!
-          .orderBy('timestamp', descending: true)
-          .snapshots(),
+      stream: _authService.getPatientsStream(), // Sedut data dari Sub-collection
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          // 🚨 J.A.R.V.I.S: Kalau keluar error Index kat sini, klik link dlm terminal!
-          print("FIREBASE ERROR: ${snapshot.error}");
-          return Center(child: Text("Error sedut data babi: ${snapshot.error}"));
+          return Center(child: Text("Litar Meletup: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
         }
 
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-
-        final allDocs = snapshot.data?.docs ?? [];
-
-        // 1. Kira Sentences Today (Logic simple: jumlah doc dlm list)
-        int sentencesToday = allDocs.length;
-
-        // 2. Mood Trend
-        String moodTrend = "Neutral";
-        if (allDocs.isNotEmpty) moodTrend = allDocs.first['mood'] ?? "Neutral";
-
-        // 3. Frequency Graf
-        Map<String, double> freqMap = {'Water': 0, 'Food': 0, 'Toilet': 0, 'Home': 0, 'Computer': 0};
-        for (var doc in allDocs) {
-          String lastObj = doc['last_object'] ?? '';
-          if (freqMap.containsKey(lastObj)) freqMap[lastObj] = freqMap[lastObj]! + 1;
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue));
         }
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  _buildSummaryCard(sentencesToday.toString(), 'Sentences Today', Icons.chat_bubble_outline, Colors.blue),
-                  const SizedBox(width: 12),
-                  _buildSummaryCard(moodTrend, 'Mood Trend', Icons.sentiment_satisfied_alt, moodTrend == "DISTRESSED" ? Colors.red : Colors.green),
-                ],
-              ),
-              const SizedBox(height: 20),
+        final patients = snapshot.data?.docs ?? [];
 
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(children: [Icon(Icons.analytics_outlined, size: 18, color: Colors.blue), SizedBox(width: 8), Text('Most Frequent Needs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
-                    const SizedBox(height: 30),
-                    SizedBox(height: 200, child: _buildDynamicBarChart(freqMap)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
+        if (patients.isEmpty) {
+          return _buildEmptyState();
+        }
 
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(children: [Icon(Icons.access_time, size: 18, color: Colors.blue), SizedBox(width: 8), Text('Communication Log', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
-                    const SizedBox(height: 16),
-                    if (allDocs.isEmpty) const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("Tiada log dikesan babi."))),
-                    ...allDocs.take(5).map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      DateTime date = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
-                      return _buildLogItem(
-                          "${date.hour}:${date.minute.toString().padLeft(2, '0')}",
-                          List<String>.from(data['phrase'].toString().split(' ')),
-                          data['mood'].toString().toLowerCase()
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          itemCount: patients.length,
+          itemBuilder: (context, index) {
+            final data = patients[index].data() as Map<String, dynamic>;
+            return _buildPatientCard(data);
+          },
         );
       },
     );
   }
 
-  // --- UI HELPER METHODS ---
-  Widget _buildSummaryCard(String val, String title, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [Icon(icon, color: color, size: 20), const SizedBox(width: 10), Text(val, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))]),
-            const SizedBox(height: 4),
-            Text(title, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogItem(String time, List<String> words, String status) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(time, style: const TextStyle(fontSize: 12, color: Colors.grey)), _buildStatusBadge(status)]),
-          const SizedBox(height: 8),
-          SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: words.map((w) => Container(margin: const EdgeInsets.only(right: 6), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)), child: Text(w, style: const TextStyle(fontSize: 12)))).toList())),
-          const Divider(height: 24),
+  // --- KAD PESAKIT (VERSION MARK 129 - WITH FAST TRACK) ---
+  Widget _buildPatientCard(Map<String, dynamic> data) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 8))
         ],
       ),
-    );
-  }
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PatientDetailsScreen(patientData: data),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                // Avatar Visual
+                Container(
+                  height: 60, width: 60,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(Icons.face_retouching_natural_rounded, color: AppTheme.primaryBlue, size: 30),
+                ),
+                const SizedBox(width: 16),
 
-  Widget _buildStatusBadge(String status) {
-    Color color = status == 'distressed' ? Colors.red : status == 'urgent' ? Colors.orange : Colors.blue;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-      child: Text(status.toUpperCase(), style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
-    );
-  }
+                // Info Pesakit
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(data['name'] ?? 'Unknown',
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: AppTheme.textDark)),
+                      const SizedBox(height: 4),
+                      Text("${data['relationship']} • ${data['age']} yrs old",
+                          style: TextStyle(color: Colors.grey.shade500, fontSize: 13, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ),
 
-  Widget _buildDynamicBarChart(Map<String, double> freqMap) {
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        maxY: (freqMap.values.reduce((a, b) => a > b ? a : b) + 5).clamp(10, 100),
-        barTouchData: BarTouchData(enabled: true),
-        titlesData: FlTitlesData(
-          show: true,
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                const style = TextStyle(color: Colors.grey, fontSize: 10);
-                String text = '';
-                switch (value.toInt()) {
-                  case 0: text = 'Water'; break;
-                  case 1: text = 'Food'; break;
-                  case 2: text = 'Toilet'; break;
-                  case 3: text = 'Home'; break;
-                }
-                return SideTitleWidget(meta: meta, child: Text(text, style: style));
-              },
+                // 🚀 J.A.R.V.I.S: LITAR FAST TRACK (SWITCH TO PATIENT)
+                // Butang gergasi untuk terus masuk mod AAC pesakit ni
+                Column(
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        _handleFastTrack(data);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryBlue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        elevation: 0,
+                      ),
+                      child: const Column(
+                        children: [
+                          Icon(Icons.rocket_launch_rounded, size: 18),
+                          Text("AAC", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 28)),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        barGroups: [
-          _barGroup(0, freqMap['Water']!, Colors.blue),
-          _barGroup(1, freqMap['Food']!, Colors.orange),
-          _barGroup(2, freqMap['Toilet']!, Colors.green),
-          _barGroup(3, freqMap['Home']!, Colors.purple),
-        ],
       ),
     );
   }
 
-  BarChartGroupData _barGroup(int x, double y, Color color) {
-    return BarChartGroupData(x: x, barRods: [BarChartRodData(toY: y, color: color, width: 18, borderRadius: const BorderRadius.vertical(top: Radius.circular(6)))]);
+  // 🚀 J.A.R.V.I.S: Sub-litar Logik Fast Track
+  void _handleFastTrack(Map<String, dynamic> patientData) async {
+    // Kita tak nak dia susah-susah pilih nama lagi, terus hantar ke PIN Screen
+    // Tapi kita bawa data pesakit ni sekali supaya PIN Screen tahu nak check PIN siapa
+
+    // Import ni kalau belum ada kat atas:
+    // import '../auth/patient_pin_screen.dart';
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PatientPinScreen(patientData: patientData),
+      ),
+    );
+  }
+
+  // --- UI BILA TIADA DATA ---
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(30),
+            decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 20)]),
+            child: Icon(Icons.person_search_rounded, size: 80, color: Colors.grey.shade200),
+          ),
+          const SizedBox(height: 24),
+          const Text("Belum Ada Pesakit",
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: AppTheme.textDark)),
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 40),
+            child: Text("Sila daftarkan pesakit di bawah jagaan anda untuk mula memantau komunikasi mereka.",
+                textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 14)),
+          ),
+        ],
+      ),
+    );
   }
 }

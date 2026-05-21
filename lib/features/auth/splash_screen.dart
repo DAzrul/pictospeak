@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../../core/services/sync_service.dart';
-import '../../core/services/local_db.dart'; // 🚨 J.A.R.V.I.S: Wajib panggil storan lokal
+import '../../core/services/local_db.dart';
 import '../caregiver/caregiver_dashboard.dart';
-import 'login_screen.dart';
 import '../patient/quick_needs_screen.dart';
+import 'role_selection_screen.dart'; // 🚨 J.A.R.V.I.S: Pastikan fail ni dah siap
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,179 +18,147 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  final LocalDB _localDB = LocalDB(); // Enjin SQLite
+  final LocalDB _localDB = LocalDB();
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // 🚨 GHOST PROTOCOL: Aktif!
-    _silentPreFetch();
+    _bootSequence();
   }
 
-  Future<void> _silentPreFetch() async {
-    print("J.A.R.V.I.S: Ghost Protocol diaktifkan. Memeriksa status memori lokal...");
+  Future<void> _bootSequence() async {
+    print("J.A.R.V.I.S: Memulakan Ghost Protocol...");
 
+    // 1. DATA INJECTION (Background setup)
     try {
-      // 1. Check kalau SQLite kosong (Tengok laci Subject)
       final existingData = await _localDB.getPictogramsByCategory('Subject');
-
       if (existingData.isEmpty) {
-        print("J.A.R.V.I.S: SQLite Kosong babi! (First Install). Memulakan suntikan JSON...");
-
-        // Buka fail JSON yang kita seludup
         String jsonString = await rootBundle.loadString('assets/global_icons.json');
         List<dynamic> jsonData = jsonDecode(jsonString);
-
-        // Sumbat masuk SQLite satu persatu
         for (var item in jsonData) {
           Map<String, dynamic> dataMap = item as Map<String, dynamic>;
           await _localDB.insertOrUpdatePictogram(dataMap, dataMap['id']);
         }
-        print("J.A.R.V.I.S: Suntikan JSON berjaya! Suit kini sedia bertempur secara OFFLINE.");
-      } else {
-        print("J.A.R.V.I.S: Data lokal dah sedia ada. Abaikan suntikan JSON.");
       }
     } catch (e) {
-      print("J.A.R.V.I.S: Gagal baca JSON babi! -> $e");
+      print("J.A.R.V.I.S: Ralat DB -> $e");
     }
 
-    // 2. Try sedut dari Awan (Firebase) kalau ada internet
-    try {
-      print("J.A.R.V.I.S: Mencuba sambungan Awan (Firebase)...");
-      await SyncService().syncFromFirebase();
-    } catch (e) {
-      print("J.A.R.V.I.S: Awan tak dapat diakses. Takpe, kita pakai peluru lokal!");
-    }
+    // 2. MASA MENUNGGU (1 Saat untuk kesan premium)
+    await Future.delayed(const Duration(seconds: 1));
 
-    print("J.A.R.V.I.S: Boot sequence selesai. Menunggu arahan bos!");
+    // 2. GATEKEEPER SCAN
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    bool isPatientLoggedIn = prefs.getBool('is_patient_logged_in') ?? false;
+
+    if (!mounted) return;
+
+    // 🚀 J.A.R.V.I.S: Kita hanya auto-route kalau pesakit TENGAH login (tengah guna mod AAC)
+    // Kalau tak, kita biar dia nampak butang "Let's Start" supaya Caregiver pun boleh pilih role.
+    if (isPatientLoggedIn) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const QuickNeedsScreen()),
+      );
+    } else {
+      // ⚪ NO ACTIVE SESSION: Tayang butang LET'S START
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundWhite,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Stack(
           children: [
-            // --- KUNCI PENJAGA (Gear Icon) ---
-            Positioned(
-              top: 16,
-              right: 16,
-              child: IconButton(
-                icon: const Icon(Icons.settings_outlined, color: Colors.grey, size: 28),
-                onPressed: () {
-                  if (FirebaseAuth.instance.currentUser != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
-                    );
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    );
-                  }
-                },
-              ),
-            ),
-
             Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo PictoSpeak
-                    Container(
-                      height: 180,
-                      width: 180,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(40),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primaryBlue.withValues(alpha: 0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(40),
-                        child: Image.asset(
-                          'assets/images/pictospeak.png',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
+                    // --- LOGO PictoSpeak ---
+                    Hero(
+                      tag: 'app_logo',
+                      child: Container(
+                        height: 160, width: 160,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(40),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryBlue.withOpacity(0.1),
+                              blurRadius: 40, offset: const Offset(0, 20),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(40),
+                          child: Image.asset('assets/images/pictospeak.png', fit: BoxFit.cover),
                         ),
                       ),
                     ),
                     const SizedBox(height: 32),
 
+                    // --- TAJUK & TAGLINE ---
                     const Text(
-                      'PictoSpeak',
-                      style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+                        'PictoSpeak',
+                        style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, color: Color(0xFF1E293B), letterSpacing: -1.0)
                     ),
                     const SizedBox(height: 8),
-
                     Text(
-                      'Communication Made Simple',
-                      style: TextStyle(fontSize: 18, color: Colors.blueGrey[600]),
+                        'Communication Made Simple',
+                        style: TextStyle(fontSize: 16, color: Colors.blueGrey[400], fontWeight: FontWeight.w500)
                     ),
-                    const SizedBox(height: 48),
 
-                    // BUTANG GERGASI PESAKIT
-                    SizedBox(
-                      width: double.infinity,
-                      height: 60,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          // 🚨 Tak payah tunggu apa-apa, langgar je masuk terus!
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => QuickNeedsScreen()),
-                          );
-                        },
-                        icon: const Icon(Icons.chat_bubble_outline),
-                        label: const Text(
-                          "Let's Communicate",
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryBlue,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    const SizedBox(height: 80),
+
+                    // --- DYNAMIC AREA ---
+                    if (_isLoading)
+                      const CircularProgressIndicator(strokeWidth: 3, color: AppTheme.primaryBlue)
+                    else
+                    // 🚀 SATU BUTANG KERAMAT UNTUK FIRST-TIME USER
+                      SizedBox(
+                        width: double.infinity,
+                        height: 65,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (context) => const RoleSelectionScreen())
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryBlue,
+                            foregroundColor: Colors.white,
+                            elevation: 10,
+                            shadowColor: AppTheme.primaryBlue.withOpacity(0.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          ),
+                          child: const Text(
+                              "LET'S START",
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2.5)
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    Text(
-                      'Mari Berkomunikasi',
-                      style: TextStyle(fontSize: 14, color: Colors.blueGrey[300]),
-                    ),
                   ],
                 ),
               ),
             ),
 
-            // Footer
+            // FOOTER VERSION
             Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
-              child: Column(
-                children: [
-                  Text('Version 1.3.18', style: TextStyle(fontSize: 12, color: Colors.blueGrey[300])),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.shield_outlined, size: 14, color: Colors.blueGrey[300]),
-                      const SizedBox(width: 4),
-                      Text('PDPA Compliant  |  AAC Certified', style: TextStyle(fontSize: 12, color: Colors.blueGrey[300])),
-                    ],
-                  ),
-                ],
+              bottom: 30, left: 0, right: 0,
+              child: Center(
+                child: Column(
+                  children: [
+                    Text('v1.4.5 Stable', style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    const Text('UTeM PSM PROJECT', style: TextStyle(fontSize: 9, color: Colors.grey, letterSpacing: 1.5)),
+                  ],
+                ),
               ),
             ),
           ],

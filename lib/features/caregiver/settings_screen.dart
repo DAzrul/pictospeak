@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 🚨 J.A.R.V.I.S: Kena import ni untuk logout
 import '../../core/theme/app_theme.dart';
-import '../../core/services/local_db.dart'; // 🚨 J.A.R.V.I.S: Untuk nuke database masa logout
+import '../../core/services/local_db.dart';
 import '../../features/auth/change_pin_screen.dart';
-import '../auth/splash_screen.dart'; // 🚨 J.A.R.V.I.S: Untuk tendang ke Splash lepas logout
+import '../auth/role_selection_screen.dart';
+import '../auth/splash_screen.dart';
 import '../caregiver/edit_profile_screen.dart';
+// 🚨 J.A.R.V.I.S: Wajib panggil litar AuthService untuk trigger protokol pemusnahan total
+import '../auth/services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,19 +28,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _ignoreRepeated = true;
   bool _largeTargets = false;
 
-  // 🚨 J.A.R.V.I.S: Fungsi Logout Penuh (Termasuk Nuke Data)
+  // 🚨 J.A.R.V.I.S: Fungsi Logout Penuh (Termasuk Nuke Data & Google Cache)
   void _handleSignOut(BuildContext context) async {
     // 1. Tembak mati SQLite (Elak hantu Acc A kacau Acc B)
     await LocalDB().deleteAllPictograms();
 
-    // 2. Logout dari Firebase
-    await FirebaseAuth.instance.signOut();
+    // 2. 🚀 PANGGIL PROTOKOL PEMUSNAHAN TOTAL (AuthService)
+    // Ini akan bunuh Firebase AND Google Cache AND Secure Storage
+    await AuthService().logoutCaregiver();
 
     // 3. Tendang user ke Splash Screen dan buang semua history laluan (route)
     if (context.mounted) {
       Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const SplashScreen()),
+          MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
               (route) => false
       );
     }
@@ -162,7 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 32),
 
-          // 5. DATA MANAGEMENT & LOGOUT (🚨 J.A.R.V.I.S: Baru ditambah)
+          // 5. DATA MANAGEMENT & LOGOUT
           _buildSectionHeader(Icons.data_usage_rounded, 'System Control', 'Manage your data and active sessions'),
           const SizedBox(height: 12),
 
@@ -179,9 +182,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 12), // Gap antara dua butang bahaya ni
+          const SizedBox(height: 12),
 
-          // 🚨 J.A.R.V.I.S: BUTANG SIGN OUT KAT SINI
+          // 🚨 J.A.R.V.I.S: BUTANG SIGN OUT
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(

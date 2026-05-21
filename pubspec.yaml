@@ -44,8 +44,11 @@ dependencies:
   http: ^1.2.0
   font_awesome_flutter: ^11.0.0
   flutter_tts: ^4.2.5
-  image_picker: ^1.0.7
-  firebase_storage: ^13.3.0
+  image_picker: ^1.2.2
+  firebase_storage: ^13.4.1
+  google_sign_in: ^6.2.1
+  shared_preferences: ^2.2.3
+  audioplayers: ^6.6.0
 
 dev_dependencies:
   flutter_test:
@@ -103,3 +106,12 @@ flutter:
   assets:
     - assets/images/pictospeak.png
     - assets/global_icons.json
+    - assets/Pictogram/
+    - assets/Pictogram/Body and Comfort/
+    - assets/Pictogram/Environment/
+    - assets/Pictogram/Feelings/
+    - assets/Pictogram/food_drinks/
+    - assets/Pictogram/Health/
+    - assets/Pictogram/Hygiene/
+    - assets/Pictogram/Lifestyle and Rehab/
+    - assets/Pictogram/Number/
