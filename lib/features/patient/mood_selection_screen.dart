@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/tts_service.dart'; // 🚨 J.A.R.V.I.S: Import mulut AI!
 import 'svo_builder_screen.dart';
 
 class MoodSelectionScreen extends StatelessWidget {
-  const MoodSelectionScreen({super.key});
+  // 🚨 J.A.R.V.I.S: Hidupkan enjin suara kat sini
+  final TtsService _ttsService = TtsService();
+
+  // Buang perkataan 'const' sebab kita ada panggil service kat atas
+  MoodSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +19,10 @@ class MoodSelectionScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.grey),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            _ttsService.stop(); // Berhenti kalau tekan pangkah
+            Navigator.pop(context);
+          },
         ),
       ),
       body: SafeArea(
@@ -54,6 +62,7 @@ class MoodSelectionScreen extends StatelessWidget {
             // SKIP BUTTON
             TextButton(
               onPressed: () {
+                _ttsService.stop(); // Potong suara kalau dia tekan skip
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const SvoBuilderScreen()),
@@ -72,18 +81,32 @@ class MoodSelectionScreen extends StatelessWidget {
 
   Widget _buildMoodButton(BuildContext context, String en, String ms, IconData icon, Color color) {
     return InkWell(
-      onTap: () {
-        // 1. LOGIK TTS: Fon akan bercakap ikut emosi (KEKALKAN INI)
+      // 🚨 J.A.R.V.I.S: Letak async supaya mulut ni boleh menunggu
+      onTap: () async {
+        // Berhentikan TTS lama kalau ada
+        await _ttsService.stop();
+
+        // Jeritkan emosi tu kuat-kuat!
+        await _ttsService.speak(en, lang: "en-US");
+
+        // SnackBar lawa untuk UI feedback
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('TTS Bunyi: $en / $ms'),
+            content: Row(
+              children: [
+                const Icon(Icons.volume_up, color: Colors.white),
+                const SizedBox(width: 10),
+                Text('Speaking: $en'),
+              ],
+            ),
             behavior: SnackBarBehavior.floating,
             backgroundColor: color,
-            duration: const Duration(milliseconds: 1000), // Pendekkan sikit duration
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(milliseconds: 1500),
           ),
         );
 
-        // 2. LOG DATA: Simpan mood untuk Dashboard (KEKALKAN INI)
+        // LOG DATA: Simpan mood untuk Dashboard (Nanti kita link masuk Firebase)
         debugPrint("Mood selected and spoken: $en");
 
       },
@@ -99,7 +122,7 @@ class MoodSelectionScreen extends StatelessWidget {
           children: [
             Icon(icon, size: 50, color: color),
             const SizedBox(height: 8),
-            // Aku adjust sikit text ni supaya dia sebut subjek "I am..."
+            // Kekalkan buang perkataan "I am" kat visual supaya nampak kemas
             Text(en.replaceAll('I am ', ''), style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16)),
             Text(ms.replaceAll('Saya ', ''), style: TextStyle(color: color.withOpacity(0.7), fontSize: 10)),
           ],

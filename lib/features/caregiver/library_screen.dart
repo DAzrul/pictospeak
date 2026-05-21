@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_theme.dart';
+import 'add_pictogram_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -9,124 +12,193 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
-  String _selectedCategory = 'Local Food';
+  // 🚀 J.A.R.V.I.S: Litar Sejarah Pergerakan
+  String? _currentFolder;
+  final List<String> _folderHistory = [];
+
+  String _formatCategoryName(String raw) {
+    return raw.replaceAll('_', ' ').toUpperCase();
+  }
+
+  void _goBack() {
+    setState(() {
+      if (_folderHistory.isNotEmpty) {
+        _folderHistory.removeLast();
+        _currentFolder = _folderHistory.isEmpty ? null : _folderHistory.last;
+      } else {
+        _currentFolder = null;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // SEKSYEN 1: Tambah Pictogram Baru
-          const Text('Add Local Context Pictogram', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
-          const SizedBox(height: 16),
+    final user = FirebaseAuth.instance.currentUser;
 
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Kotak Upload Gambar (Dotted style mockup)
-                const Text('1. Image Upload', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200, style: BorderStyle.solid)),
-                  child: Column(
-                    children: [
-                      Container(height: 60, width: 60, decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.fastfood, color: Colors.orange, size: 30)),
-                      const SizedBox(height: 8),
-                      const Text('Nasi Lemak', style: TextStyle(fontWeight: FontWeight.bold)),
-                      Text('nasi-lemak.png', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black, elevation: 0, side: BorderSide(color: Colors.grey.shade300)),
-                          child: const Text('Change Image')
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: _currentFolder != null
+            ? IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.textDark),
+          onPressed: _goBack,
+        )
+            : null,
+        title: Text(
+            _currentFolder != null ? _formatCategoryName(_currentFolder!) : "MY LIBRARY",
+            style: const TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.bold)
+        ),
+        centerTitle: true,
+      ),
 
-                // Textfields Label & Category
-                const Text('2. Label', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 4),
-                TextField(decoration: InputDecoration(hintText: 'Nasi Lemak', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-                const SizedBox(height: 16),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const AddPictogramScreen()));
+        },
+        backgroundColor: AppTheme.primaryBlue,
+        icon: const Icon(Icons.add_a_photo_rounded, color: Colors.white),
+        label: const Text("Add Custom", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
 
-                const Text('3. Category', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 4),
-                DropdownButtonFormField<String>(
-                  value: _selectedCategory,
-                  decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                  items: ['Local Food', 'Drinks', 'Places', 'Actions'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                  onChanged: (val) => setState(() => _selectedCategory = val!),
-                ),
-                const SizedBox(height: 16),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('caregivers')
+            .doc(user?.uid)
+            .collection('custom_pictograms')
+            .orderBy('created_at', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
 
-                const Text('4. Predictive Tagging', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 4),
-                TextField(decoration: InputDecoration(hintText: 'Spicy, Sambal', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-                const SizedBox(height: 4),
-                Text('When this pictogram is selected, SVO engine will suggest this tag.', style: TextStyle(fontSize: 10, color: Colors.blueGrey[400])),
-                const SizedBox(height: 24),
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return const Center(child: Text("Library kosong.\nKlik Add Custom.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)));
+          }
 
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pictogram Added! (Mockup)')));
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                    child: const Text('Add Pictogram to Library', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                )
-              ],
+          // ==========================================
+          // 🚀 J.A.R.V.I.S: LOGIK PENGELOMPOKAN (FIXED)
+          // ==========================================
+
+          // 1. Cari Folder yang patut muncul kat level ni
+          Set<String> displayFolders = {};
+          for (var doc in docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            String? parent = data['parent_folder'];
+            String category = data['category'] ?? 'uncategorized';
+
+            // Jika di HOME: Tunjuk unik category yang parent_folder dia NULL
+            if (_currentFolder == null) {
+              if (parent == null) {
+                displayFolders.add(category);
+              }
+            }
+            // Jika dalam folder X: Tunjuk unik category yang parent_folder dia adalah X
+            else {
+              if (parent == _currentFolder) {
+                displayFolders.add(category);
+              }
+            }
+          }
+
+          // 2. Cari Piktogram (File) yang patut muncul kat level ni
+          // File muncul kalau category dia SEBIJIK macam folder yang tengah dibuka
+          var filteredFiles = docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return data['category'] == _currentFolder;
+          }).toList();
+
+          List<String> folderList = displayFolders.toList();
+          int totalItems = folderList.length + filteredFiles.length;
+
+          return GridView.builder(
+            padding: const EdgeInsets.all(20),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2, mainAxisSpacing: 16, crossAxisSpacing: 16, childAspectRatio: 0.85
             ),
-          ),
-          const SizedBox(height: 32),
-
-          // SEKSYEN 2: Senarai Pictogram Sedia Ada
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Existing Pictograms', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)), child: const Text('8 items', style: TextStyle(fontSize: 12))),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(decoration: InputDecoration(hintText: 'Search pictograms...', prefixIcon: const Icon(Icons.search), isDense: true, filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
-          const SizedBox(height: 16),
-
-          // Mock List Item
-          _buildListItem('Nasi Lemak', 'Local Food', 'local', '#Sambal', Icons.fastfood, Colors.orange),
-          _buildListItem('Toilet', 'Needs', 'default', '#Urgent', Icons.wc, Colors.blue),
-        ],
+            itemCount: totalItems,
+            itemBuilder: (context, index) {
+              if (index < folderList.length) {
+                // Render Folder
+                return _buildFolderCard(folderList[index], docs);
+              } else {
+                // Render Piktogram
+                final fileData = filteredFiles[index - folderList.length].data() as Map<String, dynamic>;
+                return _buildCustomIconCard(fileData);
+              }
+            },
+          );
+        },
       ),
     );
   }
 
-  Widget _buildListItem(String name, String cat, String type, String tag, IconData icon, Color color) {
+  Widget _buildFolderCard(String folderName, List<QueryDocumentSnapshot> allDocs) {
+    // 🚀 Kira berapa barang dlm kategori ni + berapa barang dlm sub-folder dia
+    int itemCount = allDocs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return data['category'] == folderName || data['parent_folder'] == folderName;
+    }).length;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _folderHistory.add(folderName);
+          _currentFolder = folderName;
+        });
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withOpacity(0.1), blurRadius: 10)],
+          border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.2), width: 2),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.folder_copy_rounded, color: AppTheme.primaryBlue, size: 50),
+            const SizedBox(height: 10),
+            Text(_formatCategoryName(folderName),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            Text("$itemCount Items", style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomIconCard(Map<String, dynamic> data) {
+    String textEn = data['label_en'] ?? data['en'] ?? 'Unknown';
+    String imageUrl = data['image_url'] ?? '';
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: Row(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
         children: [
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.2), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(cat, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          ])),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: type == 'local' ? Colors.orange.shade100 : Colors.blue.shade100, borderRadius: BorderRadius.circular(8)), child: Text(type, style: TextStyle(fontSize: 10, color: type == 'local' ? Colors.orange.shade800 : Colors.blue.shade800))),
-          const SizedBox(width: 8),
-          IconButton(icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.grey), onPressed: (){}),
-          IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent), onPressed: (){}),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              child: imageUrl.isNotEmpty
+                  ? Image.network(imageUrl, width: double.infinity, fit: BoxFit.cover,
+                  errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.grey))
+                  : const Icon(Icons.image, color: Colors.grey),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(textEn, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+          )
         ],
       ),
     );

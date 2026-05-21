@@ -7,12 +7,25 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:953989401529:android:1badc681242c729b274468",
+        "mobilesdk_app_id": "1:953989401529:android:288f789d189b5a76274468",
         "android_client_info": {
-          "package_name": "com.example.pictoSpeak"
+          "package_name": "com.example.pictospeak"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "953989401529-smk21jc2n7bnfig4j7cg2cmuqhrm9ikg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.pictospeak",
+            "certificate_hash": "ab02cfce9293ea1231dd354e65549c96b17c4f7f"
+          }
+        },
+        {
+          "client_id": "953989401529-llipajpgvsk5fp4q762r8rp8a1e92rge.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBUWU2SPqIRSzzjYSdi1QoJ_sT2MFCgHOE"
@@ -20,26 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:953989401529:android:a7f6e4fb6b53a32b274468",
-        "android_client_info": {
-          "package_name": "com.example.pictoSpeak.pictospeak"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBUWU2SPqIRSzzjYSdi1QoJ_sT2MFCgHOE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "953989401529-llipajpgvsk5fp4q762r8rp8a1e92rge.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "953989401529-n6ms92ucs2e7i3570pk9v7r3152ootni.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.pictoSpeak.pictospeak"
+              }
+            }
+          ]
         }
       }
     }

@@ -1,5 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart'; // <-- Dah dibaiki! Takde double package dah
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -9,25 +10,40 @@ class AuthService {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   final LocalAuthentication _localAuth = LocalAuthentication();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // ---------------------------------------------------------
   // 1. REAKTOR FIREBASE (Untuk Daftar Penjaga Baru)
   // ---------------------------------------------------------
-  Future<User?> registerCaregiver(String email, String password) async {
+  Future<User?> registerCaregiver(String name, String email, String password) async {
     try {
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-      return userCredential.user;
+
+      User? user = userCredential.user;
+
+      if (user != null) {
+        // J.A.R.V.I.S: Sumbat nama dan e-mel masuk Firestore jadual 'caregivers'
+        await _firestore.collection('caregivers').doc(user.uid).set({
+          'uid': user.uid,
+          'name': name, // Nama dari kotak RegisterScreen
+          'email': email,
+          'created_at': FieldValue.serverTimestamp(),
+          'login_method': 'email',
+        });
+        print("J.A.R.V.I.S: Profil Caregiver berjaya didaftarkan ke pangkalan data!");
+      }
+      return user;
     } catch (e) {
       print("Error Register Sial: $e");
-      return null;
+      rethrow;
     }
   }
 
   // ---------------------------------------------------------
-  // 2. KUNCI FIREBASE (Untuk Penjaga Login)
+  // 2. KUNCI FIREBASE (Dah di-upgrade untuk hafal e-mel)
   // ---------------------------------------------------------
   Future<User?> loginCaregiver(String email, String password) async {
     try {
@@ -35,6 +51,11 @@ class AuthService {
         email: email,
         password: password,
       );
+
+      // 🚨 J.A.R.V.I.S: Hafal e-mel & password untuk Silent Login guna PIN nanti
+      await _secureStorage.write(key: 'saved_email', value: email);
+      await _secureStorage.write(key: 'saved_password', value: password);
+
       return userCredential.user;
     } catch (e) {
       print("Error Login Bodoh: $e");
@@ -43,35 +64,19 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 3. PETI BESI PIN (Simpan PIN ikut User ID)
+  // 3. PETI BESI PIN (Simpan secara Global)
   // ---------------------------------------------------------
   Future<void> savePin(String pin) async {
-    final user = _auth.currentUser; // Kenal pasti siapa tengah aktif
-
-    if (user != null) {
-      // Kita buat nama kunci unik untuk setiap orang
-      String uniqueKey = 'pin_${user.uid}';
-      await _secureStorage.write(key: uniqueKey, value: pin);
-      print("PIN $pin berjaya dikunci dalam peti $uniqueKey!");
-    } else {
-      print("Woi, macam mana nak save PIN kalau tak login lagi?");
-    }
+    await _secureStorage.write(key: 'device_quick_pin', value: pin);
+    print("PIN $pin berjaya dikunci secara global!");
   }
 
   // ---------------------------------------------------------
-  // 4. PEMERIKSA PIN (Check masa nak masuk Caregiver Gate)
+  // 4. PEMERIKSA PIN
   // ---------------------------------------------------------
   Future<bool> verifyPin(String enteredPin) async {
-    final user = _auth.currentUser;
-    if (user == null) return false;
-
-    String uniqueKey = 'pin_${user.uid}';
-    String? savedPin = await _secureStorage.read(key: uniqueKey);
-
-    if (savedPin == null) {
-      print("PIN belum di-setup lagi untuk user ni!");
-      return false;
-    }
+    String? savedPin = await _secureStorage.read(key: 'device_quick_pin');
+    if (savedPin == null) return false;
     return savedPin == enteredPin;
   }
 
@@ -80,7 +85,6 @@ class AuthService {
   // ---------------------------------------------------------
   Future<bool> authenticateWithBiometrics() async {
     try {
-      // Check fon kau support cap jari/Face ID ke tak
       bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
       bool isSupported = await _localAuth.isDeviceSupported();
 
@@ -89,7 +93,6 @@ class AuthService {
         return false;
       }
 
-      // Tembak popup suruh letak jari (Sintaks paling basic, kalis error)
       return await _localAuth.authenticate(
         localizedReason: 'Sila imbas jari atau muka untuk masuk ke sistem Penjaga.',
       );
@@ -100,43 +103,147 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 6. AMBIL PIN (Untuk check session kat main.dart / login_screen)
+  // 6. AMBIL PIN (Untuk check kat Login Screen)
   // ---------------------------------------------------------
   Future<String?> getSavedPin() async {
-    final user = _auth.currentUser;
-    if (user == null) return null; // Kalau takde sapa login, return null terus
-
-    String uniqueKey = 'pin_${user.uid}';
-    return await _secureStorage.read(key: uniqueKey);
+    return await _secureStorage.read(key: 'device_quick_pin');
   }
 
   // ---------------------------------------------------------
-  // 7. SIMPAN PROFIL PESAKIT KE FIRESTORE
+  // 🚀 7. [LITAR BARU] TAMBAH PESAKIT KE SUB-COLLECTION
   // ---------------------------------------------------------
-  Future<void> savePatientProfile({
-    required String caregiverName,
+  Future<void> addPatient({
     required String patientName,
     required String age,
+    required String condition,
     required String relationship,
+    required String pinCode, // PIN khas untuk pesakit ni nak masuk skrin AAC
   }) async {
     final user = _auth.currentUser;
 
     if (user != null) {
       try {
-        // Kita simpan dlm folder 'caregivers', nama fail ikut UID user
-        await _firestore.collection('caregivers').doc(user.uid).set({
-          'caregiverName': caregiverName,
-          'patientName': patientName,
-          'patientAge': age,
+        // J.A.R.V.I.S: Kita buat laluan Sub-collection -> caregivers/{uid}/patients/{auto_id}
+        DocumentReference patientRef = _firestore
+            .collection('caregivers')
+            .doc(user.uid)
+            .collection('patients')
+            .doc(); // Biar kosong, Firebase tolong auto-generate ID babi ni
+
+        await patientRef.set({
+          'patient_id': patientRef.id,
+          'caregiver_id': user.uid,
+          'name': patientName,
+          'age': age,
+          'condition': condition,
           'relationship': relationship,
-          'createdAt': FieldValue.serverTimestamp(), // Tanda waktu bila dia daftar
+          'pin_code': pinCode,
+          'created_at': FieldValue.serverTimestamp(),
+          'last_active': null, // Boleh update nanti bila pesakit guna
         });
-        print("Data berjaya disumbat masuk Firestore!");
+
+        print("J.A.R.V.I.S: Pesakit $patientName berjaya disumbat ke Sub-collection!");
       } catch (e) {
-        print("Error sumbat data babi: $e");
+        print("J.A.R.V.I.S Error sumbat data pesakit: $e");
+        rethrow;
       }
     } else {
       print("Woi, user belum login la!");
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 🚨 8. FUNGSI BARU: SILENT LOGIN (Guna masa PIN betul)
+  // --------------------------------------------------------
+  Future<bool> silentLogin() async {
+    try {
+      String? email = await _secureStorage.read(key: 'saved_email');
+      String? password = await _secureStorage.read(key: 'saved_password');
+
+      if (email != null && password != null) {
+        await _auth.signInWithEmailAndPassword(email: email, password: password);
+        print("J.A.R.V.I.S: Silent Login Berjaya! Firebase dah kenal kau.");
+        return true;
+      }
+      print("J.A.R.V.I.S: Data login tak jumpa. Kena login manual sekali.");
+      return false;
+    } catch (e) {
+      print("Silent Login Gagal: $e");
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 🚀 9. GOOGLE LOGIN + AUTO-REGISTER
+  // ---------------------------------------------------------
+  Future<User?> signInWithGoogle() async {
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null;
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final UserCredential userCredential = await _auth.signInWithCredential(credential);
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        if (userCredential.additionalUserInfo?.isNewUser ?? false) {
+          print("J.A.R.V.I.S: User Baru Dikesan! Mendaftarkan profile ke Firestore...");
+
+          await FirebaseFirestore.instance.collection('caregivers').doc(user.uid).set({
+            'uid': user.uid,
+            'name': user.displayName ?? "Caregiver Baru",
+            'email': user.email,
+            'role': 'caregiver',
+            'created_at': FieldValue.serverTimestamp(),
+            'login_method': 'google',
+          });
+        } else {
+          print("J.A.R.V.I.S: User Lama. Melangkau fasa pendaftaran.");
+        }
+      }
+
+      return user;
+    } catch (e) {
+      print("J.A.R.V.I.S: Litar Google Register terbakar! -> $e");
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 10. PROTOKOL PEMUSNAHAN (LOGOUT TOTAL)
+  // ---------------------------------------------------------
+  Future<void> logoutCaregiver() async {
+    try {
+      await _googleSignIn.signOut();
+      await _auth.signOut();
+      await _secureStorage.delete(key: 'saved_email');
+      await _secureStorage.delete(key: 'saved_password');
+      print("J.A.R.V.I.S: Protokol pemusnahan berjaya. Litar dah suci murni!");
+    } catch (e) {
+      print("J.A.R.V.I.S: Ralat masa logout sial -> $e");
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 🚀 11. [LITAR BARU] SEDUT SENARAI PESAKIT UNTUK DASHBOARD
+  // ---------------------------------------------------------
+  Stream<QuerySnapshot> getPatientsStream() {
+    final user = _auth.currentUser;
+    if (user != null) {
+      return _firestore
+          .collection('caregivers')
+          .doc(user.uid)
+          .collection('patients')
+          .orderBy('created_at', descending: true)
+          .snapshots();
+    } else {
+      // Return stream kosong kalau takde user (supaya app tak crash babi)
+      return const Stream.empty();
     }
   }
 }

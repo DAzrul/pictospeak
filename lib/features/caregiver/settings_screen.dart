@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
-import '../../features/auth/pin_setup_screen.dart'; // Import untuk tukar PIN
+import '../../core/services/local_db.dart';
+import '../../features/auth/change_pin_screen.dart';
+import '../auth/role_selection_screen.dart';
+import '../auth/splash_screen.dart';
+import '../caregiver/edit_profile_screen.dart';
+// 🚨 J.A.R.V.I.S: Wajib panggil litar AuthService untuk trigger protokol pemusnahan total
+import '../auth/services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,6 +28,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _ignoreRepeated = true;
   bool _largeTargets = false;
 
+  // 🚨 J.A.R.V.I.S: Fungsi Logout Penuh (Termasuk Nuke Data & Google Cache)
+  void _handleSignOut(BuildContext context) async {
+    // 1. Tembak mati SQLite (Elak hantu Acc A kacau Acc B)
+    await LocalDB().deleteAllPictograms();
+
+    // 2. 🚀 PANGGIL PROTOKOL PEMUSNAHAN TOTAL (AuthService)
+    // Ini akan bunuh Firebase AND Google Cache AND Secure Storage
+    await AuthService().logoutCaregiver();
+
+    // 3. Tendang user ke Splash Screen dan buang semua history laluan (route)
+    if (context.mounted) {
+      Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
+              (route) => false
+      );
+    }
+  }
+
+  // 🚨 J.A.R.V.I.S: Dialog Amaran Logout
+  void _showSignOutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to securely log out? This will clear local data and end your active session.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            onPressed: () {
+              Navigator.pop(context); // Tutup dialog
+              _handleSignOut(context); // Jalan!
+            },
+            child: const Text('Sign Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -30,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // 1. ACCOUNT MANAGEMENT (Wajib ada!)
+          // 1. ACCOUNT MANAGEMENT
           _buildSectionHeader(Icons.manage_accounts_outlined, 'Account Management', 'Update your profile and security settings'),
           const SizedBox(height: 12),
           Container(
@@ -39,18 +87,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 _buildListTile('Edit Patient Profile', 'Change name, age, or relationship', Icons.edit_note_rounded, () {
-                  print("Buka skrin edit profil");
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen()));
                 }),
                 const Divider(height: 1),
                 _buildListTile('Change Security PIN', 'Update your 4-digit access code', Icons.lock_reset_rounded, () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PinSetupScreen()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ChangePinScreen()));
                 }),
               ],
             ),
           ),
           const SizedBox(height: 24),
 
-          // 2. VISUAL & SENSORY (Autism-Specific)
+          // 2. VISUAL & SENSORY
           _buildSectionHeader(Icons.visibility_outlined, 'Visual & Sensory', 'Adjust app appearance for sensory needs'),
           const SizedBox(height: 12),
           Container(
@@ -80,7 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 3. TTS ENGINE (Existing)
+          // 3. TTS ENGINE
           _buildSectionHeader(Icons.record_voice_over_outlined, 'TTS Engine', 'Configure text-to-speech voice settings'),
           const SizedBox(height: 12),
           Container(
@@ -96,7 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 4. MOTOR ACCESSIBILITY (Existing)
+          // 4. MOTOR ACCESSIBILITY
           _buildSectionHeader(Icons.accessibility_new, 'Motor Accessibility', 'Settings for users with motor impairments'),
           const SizedBox(height: 12),
           Container(
@@ -117,9 +165,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 32),
 
-          // 5. DATA MANAGEMENT (Bakal butang bahaya)
-          _buildSectionHeader(Icons.data_usage_rounded, 'Data Management', 'Control your application data and logs'),
+          // 5. DATA MANAGEMENT & LOGOUT
+          _buildSectionHeader(Icons.data_usage_rounded, 'System Control', 'Manage your data and active sessions'),
           const SizedBox(height: 12),
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -133,13 +182,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 12),
+
+          // 🚨 J.A.R.V.I.S: BUTANG SIGN OUT
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showSignOutDialog(context),
+              icon: const Icon(Icons.logout_rounded, color: Colors.red),
+              label: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
           const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  // Helper untuk List Tile Profile/PIN
+  // --- HELPER WIDGETS ---
   Widget _buildListTile(String title, String sub, IconData icon, VoidCallback onTap) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -151,7 +216,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Dialog Pengesahan 3 Lapis (Sebab kau kata nak tebal kan?)
   void _showWipeDataDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -173,7 +237,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Helper sedia ada (Header & Slider)
   Widget _buildSectionHeader(IconData icon, String title, String subtitle) {
     return Row(children: [
       Icon(icon, color: AppTheme.primaryBlue, size: 20),

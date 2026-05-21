@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../caregiver/caregiver_dashboard.dart';
 import 'services/auth_service.dart';
-import 'pin_setup_screen.dart'; // <--- Wajib ke skrin SETUP dulu bila baru daftar
+import 'pin_setup_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -11,7 +12,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // Controller & Service
+  final _nameController = TextEditingController(); // 🚀 TAMBAH CONTROLLER NAMA
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -22,33 +23,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  // Fungsi magik daftar user dengan Error Handling yang padu
+  // --- LOGIC HANDLERS ---
+
   void _handleRegister() async {
+    final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    // 1. Validation Asas (Client-side)
-    if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
-      _showSnackBar('Woi, semua kotak wajib isi!', Colors.orange);
-      return;
-    }
-
-    // Regex Check Format Email
-    bool emailValid = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(email);
-    if (!emailValid) {
-      _showSnackBar('Format e-mel salah sial. Check balik @ dan .com', Colors.redAccent);
+    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      _showSnackBar('Woi, semua kotak wajib isi babi!', Colors.orange);
       return;
     }
 
     if (password.length < 6) {
-      _showSnackBar('Password kena sekurang-kurangnya 6 aksara!', Colors.redAccent);
+      _showSnackBar('Password kena sekurang-kurangnya 6 aksara mat.', Colors.redAccent);
       return;
     }
 
@@ -60,13 +56,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 2. Tembak Firebase
-      final user = await _authService.registerCaregiver(email, password);
-
+      // 🚀 HANTAR NAMA SEKALI KE AUTH SERVICE
+      final user = await _authService.registerCaregiver(name, email, password);
       if (user != null) {
         _showSnackBar('Akaun Berjaya! Sila set up PIN keselamatan anda.', Colors.green);
-
-        // 3. Kalau berjaya, WAJIB ke skrin SETUP PIN untuk kunci fon
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -74,123 +67,162 @@ class _RegisterScreenState extends State<RegisterScreen> {
           );
         }
       }
-    } on Exception catch (e) {
-      // 4. Tangkap error spesifik dari Firebase
-      String errorMessage = 'Gagal daftar. Sila cuba lagi.';
-      String eString = e.toString();
-
-      if (eString.contains('email-already-in-use')) {
-        errorMessage = 'E-mel ni dah ada orang gunalah, Boss.';
-      } else if (eString.contains('invalid-email')) {
-        errorMessage = 'E-mel ni rupa dia macam scammer, check balik.';
-      } else if (eString.contains('weak-password')) {
-        errorMessage = 'Password kau lemah sangat, letaklah yang susah sikit.';
-      } else if (eString.contains('network-request-failed')) {
-        errorMessage = 'Internet UTeM tengah buat hal ke? Check connection.';
-      }
-
-      _showSnackBar(errorMessage, Colors.red);
+    } catch (e) {
+      _showSnackBar('Gagal daftar: ${e.toString()}', Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  void _handleGoogleRegister() async {
+    setState(() => _isLoading = true);
+
+    try {
+      print("J.A.R.V.I.S: Memulakan litar Google Sign-In...");
+      final user = await _authService.signInWithGoogle();
+
+      if (user != null) {
+        _showSnackBar('Pendaftaran Google Berjaya!', Colors.green);
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
+                (route) => false,
+          );
+        }
+      } else {
+        setState(() => _isLoading = false);
+        _showSnackBar('Proses dibatalkan atau user tak pilih akaun.', Colors.orange);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      print("🚨 J.A.R.V.I.S ERROR: $e");
+      _showSnackBar('Ralat Kritikal! Check Debug Console mat.', Colors.red);
+    }
+  }
+
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
+      SnackBar(content: Text(message), backgroundColor: color, behavior: SnackBarBehavior.floating),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundWhite,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.textDark, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 28.0),
           child: Column(
             children: [
-              // Logo PictoSpeak
-              Container(
-                height: 80, width: 80,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(color: AppTheme.primaryBlue.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.asset('assets/images/pictospeak.png', fit: BoxFit.cover),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              const Text('Join PictoSpeak', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-              const SizedBox(height: 8),
-              Text('Create a caregiver account to start', style: TextStyle(fontSize: 14, color: Colors.blueGrey[400])),
+              _buildHeader(),
               const SizedBox(height: 32),
 
-              // Kotak Putih (Card Form)
+              // --- FORM KAD ---
               Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(28),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 20, offset: const Offset(0, 10))
                   ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildLabel('Email Address'),
-                    _buildTextField(_emailController, 'yourname@email.com', false),
-                    const SizedBox(height: 20),
-                    _buildLabel('Password'),
-                    _buildTextField(_passwordController, 'Create password', true),
-                    const SizedBox(height: 20),
-                    _buildLabel('Confirm Password'),
-                    _buildTextField(_confirmPasswordController, 'Repeat password', true),
-                    const SizedBox(height: 32),
+                    const Text('New Caregiver', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
+                    const SizedBox(height: 8),
+                    Text('Daftar akaun untuk mula memantau pesakit.', style: TextStyle(color: Colors.blueGrey[400], fontSize: 13)),
+                    const SizedBox(height: 24),
 
-                    // Butang Register dengan Loading State
+                    // 🚀 KOTAK NAMA BARU
+                    _buildTextField(_nameController, 'Full Name', Icons.person_outline, false),
+                    const SizedBox(height: 16),
+
+                    _buildTextField(_emailController, 'Email', Icons.email_outlined, false),
+                    const SizedBox(height: 16),
+                    _buildTextField(_passwordController, 'Password', Icons.lock_outline_rounded, true),
+                    const SizedBox(height: 16),
+                    _buildTextField(_confirmPasswordController, 'Confirm Password', Icons.lock_reset_rounded, true),
+
+                    const SizedBox(height: 24),
+
+                    // BUTANG DAFTAR MANUAL
                     SizedBox(
                       width: double.infinity,
-                      height: 50,
+                      height: 58,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _handleRegister,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryBlue,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Create Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text('CREATE ACCOUNT', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // DIVIDER "OR"
+                    const Row(
+                      children: [
+                        Expanded(child: Divider()),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text("OR", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                        Expanded(child: Divider()),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // BUTANG GOOGLE
+                    SizedBox(
+                      width: double.infinity,
+                      height: 58,
+                      child: OutlinedButton(
+                        onPressed: _isLoading ? null : _handleGoogleRegister,
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.grey.shade200),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/images/google_logo.png',
+                              height: 22,
+                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.g_mobiledata_rounded, color: Colors.red),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text('Sign up with Google', style: TextStyle(color: Color(0xFF475569), fontWeight: FontWeight.w600)),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
+
+              const SizedBox(height: 16),
+              _buildSignInLink(),
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text("Already a member?", style: TextStyle(color: Colors.blueGrey[500])),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Sign In', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
@@ -198,30 +230,63 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // UI Helpers
-  Widget _buildLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
+  // --- UI COMPONENTS ---
+
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        Container(
+          height: 90, width: 90,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: [
+              BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 10))
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Image.asset('assets/images/pictospeak.png', fit: BoxFit.contain),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text('Join PictoSpeak', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+      ],
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String hint, bool isPassword) {
-    return TextField(
+  Widget _buildTextField(TextEditingController controller, String label, IconData icon, bool isPassword) {
+    return TextFormField(
       controller: controller,
       obscureText: isPassword && _obscurePassword,
       decoration: InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+        labelText: label,
+        prefixIcon: Icon(icon, color: AppTheme.primaryBlue, size: 20),
         suffixIcon: isPassword ? IconButton(
-          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+          icon: Icon(_obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.grey, size: 20),
           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
         ) : null,
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade100)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 1.5)),
       ),
+    );
+  }
+
+  Widget _buildSignInLink() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text("Already have an account?", style: TextStyle(color: Colors.blueGrey[600], fontWeight: FontWeight.w500)),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Sign In', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.primaryBlue)),
+        ),
+      ],
     );
   }
 }
