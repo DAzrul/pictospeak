@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/tts_service.dart';
 import '../auth/splash_screen.dart';
-import 'svo_builder_screen.dart';
 
 class QuickNeedsScreen extends StatefulWidget {
   const QuickNeedsScreen({super.key});
@@ -17,6 +16,10 @@ class QuickNeedsScreen extends StatefulWidget {
 class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   final TtsService _ttsService = TtsService();
 
+  // 🚀 J.A.R.V.I.S: Pembolehubah setempat untuk memegang konfigurasi enjin TTS
+  double _storedSpeed = 1.0;
+  double _storedPitch = 1.0;
+
   // 🚀 J.A.R.V.I.S: State Management
   String? _currentFolder;
   final List<String> _folderHistory = [];
@@ -26,15 +29,59 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   late List<Map<String, dynamic>> _staticData;
   bool _isLoadingFirebase = true;
 
+  // 🚀 J.A.R.V.I.S: Pembolehubah aksesibiliti & visual
+  bool _isLowSensory = false;
+  bool _hideIcons = false;
+  bool _useLargeTargets = false;
+  double _selectDelay = 500.0;
+
   @override
   void initState() {
     super.initState();
     _initStaticDatabase();
     _syncWithFirebase();
+    _applyStoredSettings(); // Tarik data masa mula-mula masuk
+  }
+
+  // 🚀 J.A.R.V.I.S: LITAR UTAMA - Sedut SEMUA data konfigurasi dari storan setempat sekaligus
+  Future<void> _applyStoredSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        // 1. Parameter TTS
+        _storedSpeed = prefs.getDouble('tts_speed') ?? 1.0;
+        _storedPitch = prefs.getDouble('tts_pitch') ?? 1.0;
+
+        // 2. Parameter Visual & Sensory
+        _isLowSensory = prefs.getBool('low_sensory') ?? false;
+        _hideIcons = prefs.getBool('hide_distractions') ?? false;
+
+        // 3. Parameter Motor Accessibility
+        _useLargeTargets = prefs.getBool('large_targets') ?? false;
+        _selectDelay = prefs.getDouble('hold_delay') ?? 500.0;
+      });
+    }
+
+    // Suntik terus ke dalam enjin fizikal suara
+    await _ttsService.setSpeed(_storedSpeed);
+    await _ttsService.setPitch(_storedPitch);
+  }
+
+  // 🚀 J.A.R.V.I.S: Sebutan penuh untuk senarai bar ayat atas
+  Future<void> _speakAllItems() async {
+    if (_selectedItems.isEmpty) return;
+    String fullSentence = _selectedItems.map((item) => item['en']).join(' ');
+
+    await _ttsService.stop();
+
+    // 🚀 LANGKAH 1: Paksa sistem baca fail SharedPreferences terbaharu (Visual + Audio)
+    await _applyStoredSettings();
+
+    // 🚀 LANGKAH 2: Bersuara mengikut arahan yang telah dikemaskini
+    await _ttsService.speak(fullSentence, lang: "en-US");
   }
 
   void _initStaticDatabase() {
-    // 🚨 DATA HARDCODED (Kekal dlm litar)
     _staticData = [
       // =========================================================
       // 1. MAIN MENU (LUARAN)
@@ -151,13 +198,11 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
         String cat = data['category'] ?? 'custom';
         String? parent = data['parent_folder'];
 
-        // 1. Tentukan dia patut muncul kat mana (Filter Key)
-        // Jika ada parent, dia duduk dalam subfolder. Jika tak ada parent, dia duduk dalam category dia.
         String folderTarget = (parent != null && parent.isNotEmpty) ? cat : cat;
 
         firebaseItems.add({
           'id': data['pic_id'],
-          'folder': folderTarget, // 🚨 Kunci utama penapisan
+          'folder': folderTarget,
           'category': cat,
           'parent_folder': parent,
           'en': data['label_en'],
@@ -172,13 +217,12 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
         }
       }
 
-      // 2. Bina Folder Dinamik untuk Sub-Folders
       List<Map<String, dynamic>> dynamicFolders = [];
       for (var folderInfo in subFoldersFound) {
         var parts = folderInfo.split('|');
         dynamicFolders.add({
-          'id': parts[0], // ID folder adalah nama kategori (cth: vegetables)
-          'folder': parts[1], // Dia duduk dalam folder bapak (cth: food_drinks)
+          'id': parts[0],
+          'folder': parts[1],
           'en': parts[0].replaceAll('_', ' ').toUpperCase(),
           'ms': parts[0].replaceAll('_', ' ').toUpperCase(),
           'image': 'assets/Pictogram/Environment/light.png',
@@ -196,22 +240,13 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     });
   }
 
-  // 🚀 LITAR PENAPISAN (FIXED!)
   List<Map<String, dynamic>> get _currentDisplayItems {
     return _mergedData.where((item) => item['folder'] == _currentFolder).toList();
   }
 
-  // --- FUNGSI PEMBANTU ---
   void _removeItem(int index) => setState(() => _selectedItems.removeAt(index));
   void _removeLastItem() { if (_selectedItems.isNotEmpty) setState(() => _selectedItems.removeLast()); }
   void _clearAllItems() => setState(() => _selectedItems.clear());
-
-  Future<void> _speakAllItems() async {
-    if (_selectedItems.isEmpty) return;
-    String fullSentence = _selectedItems.map((item) => item['en']).join(' ');
-    await _ttsService.stop();
-    await _ttsService.speak(fullSentence, lang: "en-US");
-  }
 
   Future<void> _triggerSOS() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -233,7 +268,8 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     int gridColumns = screenWidth >= 900 ? 5 : (isTablet ? 4 : 3);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      // 🚀 Dinamik mengikut Low Sensory Theme
+      backgroundColor: _isLowSensory ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
       appBar: AppBar(
         backgroundColor: Colors.white, elevation: 0,
         leading: IconButton(
@@ -276,7 +312,11 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
                   : GridView.builder(
                 padding: const EdgeInsets.all(16),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: gridColumns, mainAxisSpacing: 16, crossAxisSpacing: 16, childAspectRatio: 0.8,
+                  // 🚀 Dinamik mengikut Large Touch Targets
+                  crossAxisCount: _useLargeTargets ? (gridColumns - 1).clamp(2, 5) : gridColumns,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: _useLargeTargets ? 1.0 : 0.8,
                 ),
                 itemCount: _currentDisplayItems.length,
                 itemBuilder: (context, index) => _buildSmartCard(_currentDisplayItems[index]),
@@ -305,6 +345,9 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
         } else {
           setState(() => _selectedItems.add(item));
           await _ttsService.stop();
+
+          // 🚀 FIX: Panggil fungsi penyedut yang lengkap (Audio + Visual)
+          await _applyStoredSettings();
           await _ttsService.speak(item['en'], lang: "en-US");
         }
       },
@@ -322,8 +365,13 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Expanded(child: Padding(padding: const EdgeInsets.all(12), child: _renderImage(item))),
-                  Text(item['en'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark), maxLines: 1),
-                  Text(item['ms'] ?? '', style: const TextStyle(color: Colors.grey, fontSize: 10), maxLines: 1),
+
+                  // 🚀 Dinamik Font Size mengikut saiz target kotak
+                  Text(item['en'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: _useLargeTargets ? 16 : 13, color: AppTheme.textDark), maxLines: 1),
+
+                  // 🚀 Dinamik Sorok Terjemahan jika Hide Distractions aktif
+                  if (!_hideIcons)
+                    Text(item['ms'] ?? '', style: const TextStyle(color: Colors.grey, fontSize: 10), maxLines: 1),
                   const SizedBox(height: 8),
                 ],
               ),

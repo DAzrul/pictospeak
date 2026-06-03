@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:pictospeak/features/auth/patient_setup_screen.dart';
 import '../../core/theme/app_theme.dart';
+import '../caregiver/caregiver_dashboard.dart';
 import 'services/auth_service.dart';
 
 class PinSetupScreen extends StatefulWidget {
@@ -47,9 +47,11 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
         await _authService.savePin(confirmPin);
 
         if (mounted) {
-          Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const PatientSetupScreen())
+          // 🚀 TUKAR KE DASHBOARD
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
+                (route) => false,
           );
         }
       } else {
@@ -78,10 +80,11 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              // Kalau malas buat PIN, lompat ke isi profil pesakit terus
-              Navigator.pushReplacement(
+              // 🚀 LOMPAT TERUS KE DASHBOARD, TAK PAYAH ISI PROFIL PESAKIT
+              Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const PatientSetupScreen()),
+                MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
+                    (route) => false,
               );
             },
             child: const Text('Skip', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 16)),

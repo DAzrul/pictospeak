@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🚀 1. TAMBAH IMPORT NI MAT
 import '../../core/theme/app_theme.dart';
 import '../../core/services/local_db.dart';
 import '../../features/auth/change_pin_screen.dart';
 import '../auth/role_selection_screen.dart';
 import '../auth/splash_screen.dart';
 import '../caregiver/edit_profile_screen.dart';
-// 🚨 J.A.R.V.I.S: Wajib panggil litar AuthService untuk trigger protokol pemusnahan total
 import '../auth/services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -20,6 +20,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _lowSensoryMode = false;
   bool _hideDistractions = false;
 
+  // Nilai asal (default) sebelum dibaca dari memori
   double _voiceSpeed = 1.0;
   double _voicePitch = 1.0;
   String _voiceGender = 'Female';
@@ -28,26 +29,90 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _ignoreRepeated = true;
   bool _largeTargets = false;
 
-  // 🚨 J.A.R.V.I.S: Fungsi Logout Penuh (Termasuk Nuke Data & Google Cache)
+  @override
+  void initState() {
+    super.initState();
+    _loadSettingsData(); // 🚀 2. SEBAIK SAHAJA PAGE DIBUBA, TERUS SEDUT DATA LAMA
+  }
+
+  // 🚀 3. LITAR MEMBACA DATA DARI STORAN PERANTI
+  void _loadSettingsData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      // Kalau data tak wujud lagi (first time install), dia akan guna nilai default 1.0
+      _voiceSpeed = prefs.getDouble('tts_speed') ?? 1.0;
+      _voicePitch = prefs.getDouble('tts_pitch') ?? 1.0;
+      _lowSensoryMode = prefs.getBool('low_sensory') ?? false;
+      _hideDistractions = prefs.getBool('hide_distractions') ?? false;
+      _holdDelay = prefs.getDouble('hold_delay') ?? 500.0;
+      _largeTargets = prefs.getBool('large_targets') ?? false;
+    });
+    print("J.A.R.V.I.S: Data konfigurasi berjaya dipulihkan! Speed: $_voiceSpeed, Pitch: $_voicePitch");
+  }
+
+  // 🚀 4. LITAR KEMASKINI KELAJUAN & SIMPAN TERUS KE STORAN
+  void _updateVoiceSpeed(double newSpeed) async {
+    setState(() => _voiceSpeed = newSpeed);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('tts_speed', newSpeed); // Hafal masuk disk!
+    print("J.A.R.V.I.S: Kelajuan $_voiceSpeed disimpan secara kekal.");
+  }
+
+  // 🚀 5. LITAR KEMASKINI PITCH & SIMPAN TERUS KE STORAN
+  void _updateVoicePitch(double newPitch) async {
+    setState(() => _voicePitch = newPitch);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('tts_pitch', newPitch); // Hafal masuk disk!
+    print("J.A.R.V.I.S: Nada (Pitch) $_voicePitch disimpan secara kekal.");
+  }
+
+  // 🚨 J.A.R.V.I.S: Fungsi Logout Penuh
+  // 🚨 J.A.R.V.I.S: Fungsi Logout Penuh (Versi Kebal Tetapan TTS)
   void _handleSignOut(BuildContext context) async {
-    // 1. Tembak mati SQLite (Elak hantu Acc A kacau Acc B)
-    await LocalDB().deleteAllPictograms();
+    try {
+      print("🚨 J.A.R.V.I.S: Mengaktifkan Protokol Pemusnahan Sesi...");
 
-    // 2. 🚀 PANGGIL PROTOKOL PEMUSNAHAN TOTAL (AuthService)
-    // Ini akan bunuh Firebase AND Google Cache AND Secure Storage
-    await AuthService().logoutCaregiver();
+      // 1. Tembak mati SQLite (Elak hantu Acc A kacau Acc B)
+      await LocalDB().deleteAllPictograms();
 
-    // 3. Tendang user ke Splash Screen dan buang semua history laluan (route)
-    if (context.mounted) {
-      Navigator.pushAndRemoveUntil(
+      // 2. PANGGIL PROTOKOL PEMUSNAHAN TOTAL (AuthService)
+      // Ini akan bunuh Firebase session dan Google Auth Cache
+      await AuthService().signOut();
+
+      // 3. Ambil instance SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+
+      // 4. 🚀 LITAR PENAPISAN KEKAL (Safe Wipe)
+      // Kita buang status log masuk sahaja, JANGAN padam 'tts_speed' dan 'tts_pitch'!
+      await prefs.remove('saved_email');
+      await prefs.remove('saved_password');
+      await prefs.remove('is_patient_logged_in');
+      await prefs.remove('patient_id');
+      await prefs.remove('patient_name');
+
+      print("J.A.R.V.I.S: Sesi berjaya diclearkan. Tetapan TTS Engine dikekalkan dalam peranti.");
+
+      // 5. Tendang user ke Role Selection Screen dan buang semua history laluan (route)
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
-              (route) => false
-      );
+              (route) => false,
+        );
+      }
+    } catch (e) {
+      print("🚨 J.A.R.V.I.S ERROR masa logout: $e");
+      // Fallback sekiranya litar utama sangkut, tetap tendang user keluar demi keselamatan data
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
+              (route) => false,
+        );
+      }
     }
   }
 
-  // 🚨 J.A.R.V.I.S: Dialog Amaran Logout
   void _showSignOutDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -60,8 +125,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
             onPressed: () {
-              Navigator.pop(context); // Tutup dialog
-              _handleSignOut(context); // Jalan!
+              Navigator.pop(context);
+              _handleSignOut(context);
             },
             child: const Text('Sign Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
@@ -77,7 +142,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           // 1. ACCOUNT MANAGEMENT
           _buildSectionHeader(Icons.manage_accounts_outlined, 'Account Management', 'Update your profile and security settings'),
           const SizedBox(height: 12),
@@ -112,7 +176,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: const Text('Use muted colors to prevent overstimulation', style: TextStyle(fontSize: 11)),
                   value: _lowSensoryMode,
                   activeColor: AppTheme.primaryBlue,
-                  onChanged: (val) => setState(() => _lowSensoryMode = val),
+                  onChanged: (val) async {
+                    setState(() => _lowSensoryMode = val);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('low_sensory', val);
+                  },
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
@@ -121,14 +189,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: const Text('Remove non-essential animations and icons', style: TextStyle(fontSize: 11)),
                   value: _hideDistractions,
                   activeColor: AppTheme.primaryBlue,
-                  onChanged: (val) => setState(() => _hideDistractions = val),
+                  onChanged: (val) async {
+                    setState(() => _hideDistractions = val);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('hide_distractions', val);
+                  },
                 ),
               ],
             ),
           ),
           const SizedBox(height: 24),
 
-          // 3. TTS ENGINE
+          // 3. TTS ENGINE (Dah pakai fungsi penyelamat)
           _buildSectionHeader(Icons.record_voice_over_outlined, 'TTS Engine', 'Configure text-to-speech voice settings'),
           const SizedBox(height: 12),
           Container(
@@ -136,9 +208,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
             child: Column(
               children: [
-                _buildSliderRow('Voice Speed', _voiceSpeed, 0.5, 2.0, (val) => setState(() => _voiceSpeed = val)),
+                _buildSliderRow('Voice Speed', _voiceSpeed, 0.1, 1.5, _updateVoiceSpeed),
                 const Divider(height: 24),
-                _buildSliderRow('Voice Pitch', _voicePitch, 0.5, 2.0, (val) => setState(() => _voicePitch = val)),
+                _buildSliderRow('Voice Pitch', _voicePitch, 0.1, 1.5, _updateVoicePitch),
               ],
             ),
           ),
@@ -152,13 +224,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
             child: Column(
               children: [
-                _buildSliderRow('Hold-to-Select Delay', _holdDelay, 0.0, 1000.0, (val) => setState(() => _holdDelay = val), isMs: true),
+                _buildSliderRow('Hold-to-Select Delay', _holdDelay, 0.0, 1000.0, (val) async {
+                  setState(() => _holdDelay = val);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setDouble('hold_delay', val);
+                }, isMs: true),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Large Touch Targets', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   value: _largeTargets,
                   activeColor: AppTheme.primaryBlue,
-                  onChanged: (val) => setState(() => _largeTargets = val),
+                  onChanged: (val) async {
+                    setState(() => _largeTargets = val);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('large_targets', val);
+                  },
                 ),
               ],
             ),
@@ -184,7 +264,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 12),
 
-          // 🚨 J.A.R.V.I.S: BUTANG SIGN OUT
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -204,7 +283,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- HELPER WIDGETS ---
+  // --- HELPER WIDGETS KEKAL SAMA ---
   Widget _buildListTile(String title, String sub, IconData icon, VoidCallback onTap) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -249,12 +328,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildSliderRow(String title, double val, double min, double max, Function(double) onChanged, {bool isMs = false}) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        Text(isMs ? '${val.toInt()}ms' : '${val.toStringAsFixed(1)}x', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryBlue)),
-      ]),
-      Slider(value: val, min: min, max: max, onChanged: onChanged),
-    ]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Row(
+              children: [
+                // Paparan nilai
+                Text(
+                  isMs ? '${val.toInt()}ms' : '${val.toStringAsFixed(1)}x',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryBlue),
+                ),
+                const SizedBox(width: 8),
+                // 🚀 BUTANG RESET KE NEUTRAL (1.0 atau 500ms)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.grey),
+                  onPressed: () => onChanged(isMs ? 500.0 : 1.0), // Tembak balik ke nilai neutral
+                  tooltip: 'Reset to Neutral',
+                ),
+              ],
+            ),
+          ],
+        ),
+        Slider(
+          value: val,
+          min: min,
+          max: max,
+          // 🚀 DIVISIONS: Buat takuk supaya senang nak snap ke 1.0
+          // Untuk 0.5 ke 2.0 (jarak 1.5), kita buat 15 takuk supaya setiap snap adalah 0.1
+          divisions: isMs ? 20 : 14,
+          activeColor: AppTheme.primaryBlue,
+          inactiveColor: Colors.blue.shade50,
+          onChanged: onChanged,
+        ),
+      ],
+    );
   }
 }

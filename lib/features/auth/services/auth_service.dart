@@ -52,9 +52,10 @@ class AuthService {
         password: password,
       );
 
-      // 🚨 J.A.R.V.I.S: Hafal e-mel & password untuk Silent Login guna PIN nanti
+      // 🚀 Hafal sekali dengan kaedah login dia
       await _secureStorage.write(key: 'saved_email', value: email);
       await _secureStorage.write(key: 'saved_password', value: password);
+      await _secureStorage.write(key: 'login_method', value: 'email'); // Tambah ini!
 
       return userCredential.user;
     } catch (e) {
@@ -103,8 +104,18 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 6. AMBIL PIN (Untuk check kat Login Screen)
+  // 6. AMBIL PIN / STATUS BIOMETRIC (Dah di-upgrade untuk check sesi universal)
   // ---------------------------------------------------------
+  Future<bool> hasSavedBiometricSession() async {
+    // Kita check sama ada peranti ni pernah ada akaun yang sukses log masuk atau tidak
+    String? email = await _secureStorage.read(key: 'saved_email');
+    String? method = await _secureStorage.read(key: 'login_method');
+
+    // Kalau e-mel ada dan kaedah login wujud, maksudnya butang bio wajib muncul!
+    return (email != null && email.isNotEmpty && method != null);
+  }
+
+  // Cari fungsi getSavedPin lama kau dan kekalkan buat sementara jika skrin PIN pesakit guna:
   Future<String?> getSavedPin() async {
     return await _secureStorage.read(key: 'device_quick_pin');
   }
@@ -153,22 +164,48 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 🚨 8. FUNGSI BARU: SILENT LOGIN (Guna masa PIN betul)
+  // 🚨 8. FUNGSI BARU: SILENT LOGIN UNIVERSAL (E-mel & Google)
   // --------------------------------------------------------
   Future<bool> silentLogin() async {
     try {
       String? email = await _secureStorage.read(key: 'saved_email');
-      String? password = await _secureStorage.read(key: 'saved_password');
+      String? method = await _secureStorage.read(key: 'login_method');
 
-      if (email != null && password != null) {
-        await _auth.signInWithEmailAndPassword(email: email, password: password);
-        print("J.A.R.V.I.S: Silent Login Berjaya! Firebase dah kenal kau.");
-        return true;
+      if (email == null) {
+        print("J.A.R.V.I.S: Tiada data email dijumpai dalam storan selamat.");
+        return false;
       }
-      print("J.A.R.V.I.S: Data login tak jumpa. Kena login manual sekali.");
+
+      // 🚀 CABANG A: Jika pengguna sebelum ni login guna Google
+      if (method == 'google') {
+        print("J.A.R.V.I.S: Mengaktifkan litar pintas Google Silent Login...");
+        // Re-authenticate secara senyap menggunakan GoogleSignIn cache peranti
+        final GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
+        if (googleUser != null) {
+          final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+          final AuthCredential credential = GoogleAuthProvider.credential(
+            accessToken: googleAuth.accessToken,
+            idToken: googleAuth.idToken,
+          );
+          await _auth.signInWithCredential(credential);
+          print("J.A.R.V.I.S: Google Biometric Login Berjaya!");
+          return true;
+        }
+      }
+
+      // 🚀 CABANG B: Jika pengguna sebelum ni login guna E-mel biasa
+      else {
+        String? password = await _secureStorage.read(key: 'saved_password');
+        if (password != null) {
+          await _auth.signInWithEmailAndPassword(email: email, password: password);
+          print("J.A.R.V.I.S: Email Biometric Login Berjaya!");
+          return true;
+        }
+      }
+
       return false;
     } catch (e) {
-      print("Silent Login Gagal: $e");
+      print("🚨 J.A.R.V.I.S: Silent Login Gagal total -> $e");
       return false;
     }
   }
@@ -215,19 +252,22 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 10. PROTOKOL PEMUSNAHAN (LOGOUT TOTAL)
+  // 10. PROTOKOL PEMUSNAHAN (LOGOUT TOTAL) - VERSI SELAMAT
   // ---------------------------------------------------------
-  Future<void> logoutCaregiver() async {
-    try {
-      await _googleSignIn.signOut();
-      await _auth.signOut();
-      await _secureStorage.delete(key: 'saved_email');
-      await _secureStorage.delete(key: 'saved_password');
-      print("J.A.R.V.I.S: Protokol pemusnahan berjaya. Litar dah suci murni!");
-    } catch (e) {
-      print("J.A.R.V.I.S: Ralat masa logout sial -> $e");
+    Future<void> signOut() async {
+      try {
+        await _googleSignIn.signOut();
+        await _auth.signOut();
+
+        // 🚀 J.A.R.V.I.S: JANGAN DELETE 'saved_email' & 'saved_password' kat sini mat!
+        // Kalau kau delete kat sini, litar biometric kau automatik akan lumpuh total masa logout.
+        // Kita cuma tamatkan session Firebase sahaja. Storan selamat dalam peranti kekal selamat.
+
+        print("J.A.R.V.I.S: Sesi Firebase ditamatkan. Kredential biometrik dikekalkan dalam peti besi.");
+      } catch (e) {
+        print("J.A.R.V.I.S: Ralat masa logout -> $e");
+      }
     }
-  }
 
   // ---------------------------------------------------------
   // 🚀 11. [LITAR BARU] SEDUT SENARAI PESAKIT UNTUK DASHBOARD

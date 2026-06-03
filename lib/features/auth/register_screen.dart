@@ -78,7 +78,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      print("J.A.R.V.I.S: Memulakan litar Google Sign-In...");
+      print("🚨 J.A.R.V.I.S: Memutuskan sebarang sesi aktif sebelum ini bagi mengelakkan session overlap...");
+
+      // 🚀 LANGKAH 1: Paksa sistem log keluar sepenuhnya daripada Firebase dan Google
+      // untuk memastikan prompt pemilihan akaun Google yang bersih akan keluar.
+      await _authService.signOut();
+
+      print("J.A.R.V.I.S: Memulakan litar Google Sign-In yang bersih...");
       final user = await _authService.signInWithGoogle();
 
       if (user != null) {
