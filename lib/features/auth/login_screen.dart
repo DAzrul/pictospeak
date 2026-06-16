@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/sync_service.dart';
 import 'services/auth_service.dart';
@@ -21,19 +23,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
-  bool _hasSavedPin = false;
+  bool _hasSavedBiometric = false;
 
   @override
   void initState() {
     super.initState();
-    _checkSavedPin();
+    _checkSavedBiometric(); // 🚀 Panggil fungsi baharu
   }
 
-  void _checkSavedPin() async {
-    String? pin = await _authService.getSavedPin();
-    if (pin != null && pin.isNotEmpty) {
-      setState(() => _hasSavedPin = true);
-    }
+  void _checkSavedBiometric() async {
+    final prefs = await SharedPreferences.getInstance();
+    bool isEnabledInSettings = prefs.getBool('biometric_enabled') ?? false;
+
+    bool hasSession = await _authService.hasSavedBiometricSession();
+
+    setState(() {
+      // 🚀 Hanya tunjuk butang kalau ada session DAN user dah ON dalam settings
+      _hasSavedBiometric = hasSession && isEnabledInSettings;
+    });
   }
 
   void _navigateToDashboard() {
@@ -50,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      _showSnackBar('E-mel & Password wajib isi babi!', Colors.orange);
+      _showSnackBar('Please enter both email and password.', Colors.orange);
       return;
     }
 
@@ -61,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (user != null) {
       if (mounted) _navigateToDashboard();
     } else {
-      _showSnackBar('Login Gagal. Salah info ni mat.', Colors.red);
+      _showSnackBar('Login failed. Please check your credentials and try again.', Colors.red);
     }
   }
 
@@ -72,28 +79,41 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await _authService.signInWithGoogle();
 
       if (user != null) {
-        print("J.A.R.V.I.S: Login Google Berjaya. Terbang ke Dashboard!");
+        print("J.A.R.V.I.S: Google Login successful. Saving session for Biometric...");
+
+        // 🚀 KUNCI KESELAMATAN: Hafal email & kaedah login google ke secure storage
+        final secureStorage = const FlutterSecureStorage();
+        await secureStorage.write(key: 'saved_email', value: user.email);
+        await secureStorage.write(key: 'login_method', value: 'google');
+
         if (mounted) _navigateToDashboard();
       } else {
-        // Kalau user tekan back atau cancel masa pilih akaun
         setState(() => _isLoading = false);
-        _showSnackBar('Login dibatalkan oleh pengguna.', Colors.orange);
+        _showSnackBar('Login cancelled by user.', Colors.orange);
       }
     } catch (e) {
-      // 🚨 J.A.R.V.I.S: Tangkap error kalau litar terbakar
       setState(() => _isLoading = false);
-      print("J.A.R.V.I.S: Ralat Kritikal Google Login -> $e");
-      _showSnackBar('Ralat: Sila check internet atau SHA-1 Firebase kau.', Colors.red);
+      print("J.A.R.V.I.S: Critical Google Login Error -> $e");
+      _showSnackBar('An error occurred. Please check your connection and try again.', Colors.red);
     }
   }
 
   void _handleBiometricLogin() async {
+    // 1. Tembak cip pengimbas cap jari/muka peranti
     bool authenticated = await _authService.authenticateWithBiometrics();
+
     if (authenticated && mounted) {
       setState(() => _isLoading = true);
+
+      // 2. 🚀 Panggil Silent Login Universal (Dia akan check sama ada e-mel atau Google)
       bool loggedIn = await _authService.silentLogin();
       setState(() => _isLoading = false);
-      if (loggedIn) _navigateToDashboard();
+
+      if (loggedIn) {
+        _navigateToDashboard();
+      } else {
+        _showSnackBar('Biometric session expired. Please log in manually.', Colors.orange);
+      }
     }
   }
 
@@ -283,13 +303,12 @@ class _LoginScreenState extends State<LoginScreen> {
         suffixIcon: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icon Mata (Show/Hide)
             IconButton(
               icon: Icon(_obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.grey, size: 20),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
-            // 🚨 Icon Fingerprint (Hanya muncul kalau ada saved session)
-            if (_hasSavedPin)
+            // 🚨 J.A.R.V.I.S: Menggunakan variable status biometrik universal terbaharu!
+            if (_hasSavedBiometric)
               IconButton(
                 icon: const Icon(Icons.fingerprint_rounded, color: AppTheme.primaryBlue, size: 24),
                 onPressed: _handleBiometricLogin,

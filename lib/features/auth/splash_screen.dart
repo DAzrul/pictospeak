@@ -154,7 +154,7 @@ class _SplashScreenState extends State<SplashScreen> {
               child: Center(
                 child: Column(
                   children: [
-                    Text('v1.4.5 Stable', style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
+                    Text('v2.6.7 Stable', style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
                     const Text('UTeM PSM PROJECT', style: TextStyle(fontSize: 9, color: Colors.grey, letterSpacing: 1.5)),
                   ],

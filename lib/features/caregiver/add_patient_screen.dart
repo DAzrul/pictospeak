@@ -31,7 +31,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     super.dispose();
   }
 
-  // 🚀 J.A.R.V.I.S: Litar penghantaran data ke Sub-collection
+  // 🚨 Protocol: Data submission to sub-collection
   void _handleSubmit() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
@@ -42,19 +42,19 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
           age: _ageController.text.trim(),
           condition: _conditionController.text.trim(),
           relationship: _relationship,
-          pinCode: _pinController.text.trim(), // PIN unik untuk pesakit ni
+          pinCode: _pinController.text.trim(), // Unique PIN for the patient
         );
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Pesakit Berjaya Didaftarkan! 🦾'), backgroundColor: Colors.green),
+            const SnackBar(content: Text('Patient registered successfully.'), backgroundColor: Colors.green),
           );
-          Navigator.pop(context); // Balik ke Dashboard
+          Navigator.pop(context); // Return to Dashboard
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal daftar pesakit: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text('Failed to register patient: $e'), backgroundColor: Colors.red),
           );
         }
       } finally {
@@ -87,13 +87,13 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                 _buildInstructionCard(),
                 const SizedBox(height: 24),
 
-                // --- FORM KAD ---
+                // --- FORM CARD ---
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(28),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 5))],
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 5))],
                   ),
                   child: Column(
                     children: [
@@ -112,7 +112,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
 
                       // --- SECURITY PIN ---
                       const Text('Security PIN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                      const Text('PIN ini digunakan oleh pesakit untuk login atau keluar dari mod AAC.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      const Text('This PIN is required for the patient to log in or exit the AAC mode.', style: TextStyle(fontSize: 11, color: Colors.grey)),
                       const SizedBox(height: 12),
                       _buildTextField(_pinController, 'Set 4-Digit PIN', Icons.lock_clock_rounded, isNumber: true, isPin: true),
                     ],
@@ -135,12 +135,12 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
   Widget _buildInstructionCard() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppTheme.primaryBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(color: AppTheme.primaryBlue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
           const Icon(Icons.info_outline_rounded, color: AppTheme.primaryBlue),
           const SizedBox(width: 12),
-          Expanded(child: Text('Pastikan maklumat pesakit tepat untuk laporan kesihatan masa depan.', style: TextStyle(color: Colors.blueGrey[800], fontSize: 12))),
+          Expanded(child: Text('Please ensure all patient information is accurate for future health reports.', style: TextStyle(color: Colors.blueGrey[800], fontSize: 12))),
         ],
       ),
     );
@@ -160,7 +160,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
         counterText: "",
       ),
-      validator: (v) => (isMandatory && (v == null || v.trim().isEmpty)) ? 'Wajib isi babi!' : null,
+      validator: (v) => (isMandatory && (v == null || v.trim().isEmpty)) ? 'This field is required.' : null,
     );
   }
 

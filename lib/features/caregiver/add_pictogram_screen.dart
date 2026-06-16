@@ -24,7 +24,7 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
   final _newSubController = TextEditingController();
 
   String _selectedMainCategory = 'custom';
-  String _selectedSubCategory = 'none'; // Sentiasa mula dengan none
+  String _selectedSubCategory = 'none';
 
   bool _isCreatingNewMain = false;
   bool _isCreatingNewSub = false;
@@ -82,7 +82,7 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
         });
       }
     } catch (e) {
-      print("Litar radar sangkut: $e");
+      debugPrint("Error scanning folders: $e");
     }
   }
 
@@ -103,17 +103,17 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
 
   Future<void> _uploadPictogram() async {
     if (_imageFile == null || _enController.text.isEmpty || _msController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Isi semua maklumat dan gambar!"), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please fill in all fields and add an image."), backgroundColor: Colors.orange));
       return;
     }
 
     if (_isCreatingNewMain && _newMainController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sila letak nama Main Folder baru."), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter a name for the new main folder."), backgroundColor: Colors.orange));
       return;
     }
 
     if (_selectedSubCategory == 'ADD_NEW' && _newSubController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sila letak nama Sub-Folder baru."), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter a name for the new sub-folder."), backgroundColor: Colors.orange));
       return;
     }
 
@@ -128,7 +128,6 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
       TaskSnapshot snapshot = await uploadTask;
       String downloadUrl = await snapshot.ref.getDownloadURL();
 
-      // 🚀 LOGIK PENGIRAAN PARENT & KATEGORI (FIXED!)
       String finalMain = _isCreatingNewMain ? _formatToId(_newMainController.text) : _selectedMainCategory;
       String? finalSub;
 
@@ -137,7 +136,7 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
       }
 
       String actualCategory = finalSub ?? finalMain;
-      String? parentFolder = finalSub != null ? finalMain : null; // Kalau ada sub, parent wujud!
+      String? parentFolder = finalSub != null ? finalMain : null;
 
       DocumentReference docRef = FirebaseFirestore.instance.collection('caregivers').doc(user.uid).collection('custom_pictograms').doc();
 
@@ -148,7 +147,7 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
         'label_ms': _msController.text.trim(),
         'image_url': downloadUrl,
         'category': actualCategory,
-        'parent_folder': parentFolder, // 🚨 Sekarang baru dia tembak betul!
+        'parent_folder': parentFolder,
         'tags': [
           _enController.text.trim().toLowerCase(),
           _msController.text.trim().toLowerCase(),
@@ -160,11 +159,11 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Custom Pictogram Saved Successfully!"), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pictogram saved successfully!"), backgroundColor: Colors.green));
         Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload Failed: $e"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload failed: $e"), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -220,9 +219,7 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
             TextField(controller: _msController, decoration: const InputDecoration(labelText: 'Word (Malay) - e.g: Lobak Merah', filled: true, fillColor: Colors.white)),
             const SizedBox(height: 24),
 
-            // ==========================================
-            // 🚀 LAPIS 1: MAIN FOLDER DROPDOWN (DIKEMASKINI)
-            // ==========================================
+            // Main Folder Dropdown
             DropdownButtonFormField<String>(
               value: _selectedMainCategory,
               decoration: const InputDecoration(labelText: '1. Main Folder', filled: true, fillColor: Colors.white),
@@ -234,7 +231,7 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
                 setState(() {
                   _selectedMainCategory = value!;
                   _isCreatingNewMain = (value == 'ADD_NEW');
-                  _selectedSubCategory = 'none'; // Reset sub-folder bila tukar rumah utama
+                  _selectedSubCategory = 'none';
                   _isCreatingNewSub = false;
                 });
               },
@@ -245,9 +242,7 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
             ],
             const SizedBox(height: 16),
 
-            // ==========================================
-            // 🚀 LAPIS 2: SUB-FOLDER DROPDOWN (DIKEMASKINI)
-            // ==========================================
+            // Sub-Folder Dropdown
             DropdownButtonFormField<String>(
               value: _selectedSubCategory,
               decoration: const InputDecoration(labelText: '2. Sub-Folder (Optional)', filled: true, fillColor: Colors.white),
@@ -258,7 +253,7 @@ class _AddPictogramScreenState extends State<AddPictogramScreen> {
               ],
               onChanged: (value) {
                 setState(() {
-                  _selectedSubCategory = value!; // 🚨 FIX UTAMA: Update state betul-betul
+                  _selectedSubCategory = value!;
                   _isCreatingNewSub = (value == 'ADD_NEW');
                 });
               },

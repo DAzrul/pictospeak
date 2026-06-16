@@ -1,3 +1,4 @@
+import 'dart:async'; // 🚀 J.A.R.V.I.S: Import ni wajib untuk StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,11 +6,11 @@ import 'package:pictospeak/features/caregiver/patient_details_screen.dart';
 import '../../core/theme/app_theme.dart';
 import '../auth/patient_pin_screen.dart';
 import '../auth/services/auth_service.dart';
-import '../auth/role_selection_screen.dart'; // Import untuk litar logout/switch
+import '../auth/role_selection_screen.dart';
 import 'add_patient_screen.dart';
 import 'library_screen.dart';
 import 'settings_screen.dart';
-import 'package:audioplayers/audioplayers.dart'; // 🚀 Import ni kat atas sekali
+import 'package:audioplayers/audioplayers.dart';
 
 class CaregiverDashboard extends StatefulWidget {
   const CaregiverDashboard({super.key});
@@ -22,9 +23,10 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
   int _selectedIndex = 0;
   final AuthService _authService = AuthService();
 
-  // 🚨 J.A.R.V.I.S: Enjin Bunyi Siren
+  // 🚨 J.A.R.V.I.S: Enjin Bunyi Siren & Radar
   final AudioPlayer _audioPlayer = AudioPlayer();
-  bool _isSosActive = false; // Supaya pop-up tak keluar bertindih
+  bool _isSosActive = false;
+  StreamSubscription<QuerySnapshot>? _sosSubscription; // 🚀 Telinga radar kita
 
   @override
   void initState() {
@@ -32,43 +34,57 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     _startSosRadar(); // 🚀 Hidupkan radar masa Dashboard dibuka!
   }
 
-  // 🚨 LITAR RADAR SOS
+  // =========================================================
+  // 🚨 LITAR RADAR SOS (VERSI QUEUE BERGILIR - KALIS MULTI-PATIENT)
+  // =========================================================
   void _startSosRadar() {
-    FirebaseFirestore.instance
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _sosSubscription = FirebaseFirestore.instance
         .collection('sos_alerts')
+        .where('caregiver_id', isEqualTo: user.uid)
         .where('status', isEqualTo: 'ACTIVE')
         .snapshots()
         .listen((snapshot) {
 
-      // Kalau ada dokumen SOS baru yang berstatus 'ACTIVE'
-      if (snapshot.docs.isNotEmpty && !_isSosActive) {
-        final data = snapshot.docs.first.data();
-        final docId = snapshot.docs.first.id;
+      // Kalau takde SOS langsung, diam je.
+      if (snapshot.docs.isEmpty) return;
 
-        _triggerSosAlarm(data['patient_name'], docId);
-      }
+      // Kalau litar tengah sibuk handle pesakit A, abaikan dulu.
+      // Jangan risau, Firestore akan trigger stream ni balik lepas kita setel pesakit A.
+      if (_isSosActive) return;
+
+      // 🚀 J.A.R.V.I.S: Kunci litar & ambil dokumen TERATAS (First in line)
+      _isSosActive = true;
+
+      final data = snapshot.docs.first.data() as Map<String, dynamic>;
+      final targetPatientId = data['patient_id'];
+      String pName = data['patient_name'] ?? 'Pesakit';
+
+      // Hantar ID Pesakit, bukan ID dokumen SOS, supaya kita boleh bunuh SPAM pesakit ni je
+      _triggerSosAlarm(pName, targetPatientId);
     });
   }
 
-  // 🚨 LITAR PENGGERA & POP-UP
-  void _triggerSosAlarm(String patientName, String docId) async {
-    setState(() => _isSosActive = true);
+  // =========================================================
+  // 🚨 LITAR PENGGERA & POP-UP (VERSI TARGETED STRIKE)
+  // =========================================================
+  void _triggerSosAlarm(String patientName, String targetPatientId) async {
+    setState(() {});
 
-    // Bunyikan Siren (Pastikan kau dah letak fail mp3 dlm folder assets)
-    // Kalau takde file mp3 lagi, litar ni akan senyap je tapi pop-up tetap keluar
     try {
-      await _audioPlayer.setReleaseMode(ReleaseMode.loop); // Bunyi non-stop
+      await _audioPlayer.setReleaseMode(ReleaseMode.loop);
       await _audioPlayer.play(AssetSource('sounds/siren.mp3'));
     } catch (e) {
-      print("Siren tak jumpa : $e");
+      print("🚨 J.A.R.V.I.S: Siren rosak -> $e");
     }
 
     if (!mounted) return;
 
-    // Tembak Pop-up Merah Gergasi kat muka Penjaga
     showDialog(
         context: context,
-        barrierDismissible: false, // Tak boleh tutup selagi tak tekan butang
+        barrierDismissible: false,
         builder: (context) {
           return AlertDialog(
             backgroundColor: Colors.red.shade600,
@@ -77,27 +93,59 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
               children: [
                 Icon(Icons.warning_amber_rounded, color: Colors.white, size: 40),
                 SizedBox(width: 10),
-                Text("KECEMASAN SOS!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Expanded(
+                  child: Text(
+                      "KECEMASAN SOS!",
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)
+                  ),
+                ),
               ],
             ),
-            content: Text("Pesakit $patientName memerlukan bantuan segera!",
+            content: Text("Pesakit ${patientName.toUpperCase()} memerlukan bantuan segera!",
                 style: const TextStyle(color: Colors.white, fontSize: 18)),
             actions: [
-              ElevatedButton(
-                onPressed: () async {
-                  // 1. Matikan bunyi
-                  await _audioPlayer.stop();
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    await _audioPlayer.stop();
 
-                  // 2. Padam/Update status SOS dlm Firestore supaya tak jerit lagi
-                  await FirebaseFirestore.instance.collection('sos_alerts').doc(docId).update({
-                    'status': 'RESOLVED',
-                  });
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user != null) {
+                      // 🚀 J.A.R.V.I.S TARGETED STRIKE:
+                      // Cari SOS untuk PESAKIT INI SAHAJA. Biarkan pesakit lain punya SOS hidup.
+                      var activeSosDocs = await FirebaseFirestore.instance
+                          .collection('sos_alerts')
+                          .where('caregiver_id', isEqualTo: user.uid)
+                          .where('patient_id', isEqualTo: targetPatientId) // 🔥 INI PENYELAMAT NYA!
+                          .where('status', isEqualTo: 'ACTIVE')
+                          .get();
 
-                  setState(() => _isSosActive = false);
-                  if (mounted) Navigator.pop(context); // Tutup dialog
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.red),
-                child: const Text("SAYA DATANG SEKARANG", style: TextStyle(fontWeight: FontWeight.bold)),
+                      WriteBatch batch = FirebaseFirestore.instance.batch();
+                      for (var doc in activeSosDocs.docs) {
+                        batch.update(doc.reference, {'status': 'RESOLVED'});
+                      }
+                      await batch.commit();
+                    }
+
+                    // 🚀 Buka balik mangga litar.
+                    // Sebaik sahaja database update, stream akan berjalan balik.
+                    // Kalau ada Patient B tengah tunggu, pop-up baru akan terus keluar!
+                    _isSosActive = false;
+
+                    if (context.mounted) {
+                      setState(() {});
+                      Navigator.pop(context);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.red,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+                  ),
+                  child: const Text("SAYA DATANG SEKARANG", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
               )
             ],
           );
@@ -107,7 +155,8 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
 
   @override
   void dispose() {
-    _audioPlayer.dispose(); // Matikan speaker bila tutup app
+    _sosSubscription?.cancel(); // 🚀 Tutup telinga radar bila app mati
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -116,11 +165,10 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    // Susunan skrin untuk setiap tab
     final List<Widget> pages = [
-      _buildPatientsListTab(), // Tab 0: Senarai Pesakit
-      const LibraryScreen(),    // Tab 1: Library Piktogram
-      const SettingsScreen(),   // Tab 2: Settings & Logout
+      _buildPatientsListTab(),
+      const LibraryScreen(),
+      const SettingsScreen(),
     ];
 
     return Scaffold(
@@ -128,7 +176,6 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        // Tombol Switch Role (Bawa balik ke skrin depan tanpa logout kalau perlu)
         leading: IconButton(
           icon: const Icon(Icons.swap_horiz_rounded, color: AppTheme.primaryBlue),
           onPressed: () {
@@ -145,14 +192,13 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none_rounded, color: Colors.grey),
-            onPressed: () {}, // Nanti boleh letak notifikasi alert pesakit
+            onPressed: () {},
           )
         ],
       ),
 
       body: pages[_selectedIndex],
 
-      // 🚀 J.A.R.V.I.S: Butang Tambah Pesakit (Muncul hanya dlm tab Patients)
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton(
         backgroundColor: AppTheme.primaryBlue,
@@ -187,7 +233,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
   // --- TAB 0: LITAR SENARAI PESAKIT (LIVE STREAM) ---
   Widget _buildPatientsListTab() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _authService.getPatientsStream(), // Sedut data dari Sub-collection
+      stream: _authService.getPatientsStream(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text("Litar Meletup: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
@@ -242,7 +288,6 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
             padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
-                // Avatar Visual
                 Container(
                   height: 60, width: 60,
                   decoration: BoxDecoration(
@@ -252,8 +297,6 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                   child: const Icon(Icons.face_retouching_natural_rounded, color: AppTheme.primaryBlue, size: 30),
                 ),
                 const SizedBox(width: 16),
-
-                // Info Pesakit
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,9 +309,6 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                     ],
                   ),
                 ),
-
-                // 🚀 J.A.R.V.I.S: LITAR FAST TRACK (SWITCH TO PATIENT)
-                // Butang gergasi untuk terus masuk mod AAC pesakit ni
                 Column(
                   children: [
                     ElevatedButton(
@@ -299,14 +339,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     );
   }
 
-  // 🚀 J.A.R.V.I.S: Sub-litar Logik Fast Track
   void _handleFastTrack(Map<String, dynamic> patientData) async {
-    // Kita tak nak dia susah-susah pilih nama lagi, terus hantar ke PIN Screen
-    // Tapi kita bawa data pesakit ni sekali supaya PIN Screen tahu nak check PIN siapa
-
-    // Import ni kalau belum ada kat atas:
-    // import '../auth/patient_pin_screen.dart';
-
     Navigator.push(
       context,
       MaterialPageRoute(

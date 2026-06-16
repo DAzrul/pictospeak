@@ -25,4 +25,13 @@ class TtsService {
   Future<void> stop() async {
     await _flutterTts.stop();
   }
+
+  // 🚀 J.A.R.V.I.S: TAMBAH DUA FUNGSI NI MAT!
+  Future<void> setSpeed(double speed) async {
+    await _flutterTts.setSpeechRate(speed);
+  }
+
+  Future<void> setPitch(double pitch) async {
+    await _flutterTts.setPitch(pitch);
+  }
 }

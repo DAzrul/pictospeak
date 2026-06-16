@@ -52,9 +52,10 @@ class AuthService {
         password: password,
       );
 
-      // 🚨 J.A.R.V.I.S: Hafal e-mel & password untuk Silent Login guna PIN nanti
+      // 🚀 Hafal sekali dengan kaedah login dia
       await _secureStorage.write(key: 'saved_email', value: email);
       await _secureStorage.write(key: 'saved_password', value: password);
+      await _secureStorage.write(key: 'login_method', value: 'email'); // Tambah ini!
 
       return userCredential.user;
     } catch (e) {
@@ -103,8 +104,18 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 6. AMBIL PIN (Untuk check kat Login Screen)
+  // 6. AMBIL PIN / STATUS BIOMETRIC (Dah di-upgrade untuk check sesi universal)
   // ---------------------------------------------------------
+  Future<bool> hasSavedBiometricSession() async {
+    // Kita check sama ada peranti ni pernah ada akaun yang sukses log masuk atau tidak
+    String? email = await _secureStorage.read(key: 'saved_email');
+    String? method = await _secureStorage.read(key: 'login_method');
+
+    // Kalau e-mel ada dan kaedah login wujud, maksudnya butang bio wajib muncul!
+    return (email != null && email.isNotEmpty && method != null);
+  }
+
+  // Cari fungsi getSavedPin lama kau dan kekalkan buat sementara jika skrin PIN pesakit guna:
   Future<String?> getSavedPin() async {
     return await _secureStorage.read(key: 'device_quick_pin');
   }
@@ -153,22 +164,49 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 🚨 8. FUNGSI BARU: SILENT LOGIN (Guna masa PIN betul)
+  // 🚨 8. FUNGSI BARU: SILENT LOGIN UNIVERSAL (E-mel & Google)
   // --------------------------------------------------------
   Future<bool> silentLogin() async {
     try {
       String? email = await _secureStorage.read(key: 'saved_email');
-      String? password = await _secureStorage.read(key: 'saved_password');
+      String? method = await _secureStorage.read(key: 'login_method');
 
-      if (email != null && password != null) {
-        await _auth.signInWithEmailAndPassword(email: email, password: password);
-        print("J.A.R.V.I.S: Silent Login Berjaya! Firebase dah kenal kau.");
+      if (email == null) return false;
+
+      // 🌐 JIKA USER GUNA GOOGLE SEBELUM NI
+      // 🚀 CABANG A: Jika pengguna sebelum ni login guna Google
+      if (method == 'google') {
+        print("J.A.R.V.I.S: Mencuba sambungan senyap Google...");
+
+        // Cuba tarik user yang tengah 'tidur' dalam cache
+        GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
+
+        // 🚨 J.A.R.V.I.S: Kalau fail, kita paksa dia login balik (ini akan keluar prompt akaun)
+        // Tapi untuk biometrik, selalunya signInSilently dah cukup kalau tak kena 'hard signout'
+        if (googleUser == null) {
+          print("J.A.R.V.I.S: Sesi Google mati total. Kena login manual semula.");
+          return false;
+        }
+
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final AuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        await _auth.signInWithCredential(credential);
         return true;
       }
-      print("J.A.R.V.I.S: Data login tak jumpa. Kena login manual sekali.");
+      // ✉️ JIKA USER GUNA EMAIL BIASA
+      else {
+        String? password = await _secureStorage.read(key: 'saved_password');
+        if (password != null) {
+          await _auth.signInWithEmailAndPassword(email: email, password: password);
+          return true;
+        }
+      }
       return false;
     } catch (e) {
-      print("Silent Login Gagal: $e");
       return false;
     }
   }
@@ -191,43 +229,34 @@ class AuthService {
       final User? user = userCredential.user;
 
       if (user != null) {
-        if (userCredential.additionalUserInfo?.isNewUser ?? false) {
-          print("J.A.R.V.I.S: User Baru Dikesan! Mendaftarkan profile ke Firestore...");
+        // 🚀 J.A.R.V.I.S: SIMPAN INFO UNTUK BIOMETRIC SESI DEPAN
+        await _secureStorage.write(key: 'saved_email', value: user.email);
+        await _secureStorage.write(key: 'login_method', value: 'google');
 
-          await FirebaseFirestore.instance.collection('caregivers').doc(user.uid).set({
-            'uid': user.uid,
-            'name': user.displayName ?? "Caregiver Baru",
-            'email': user.email,
-            'role': 'caregiver',
-            'created_at': FieldValue.serverTimestamp(),
-            'login_method': 'google',
-          });
-        } else {
-          print("J.A.R.V.I.S: User Lama. Melangkau fasa pendaftaran.");
-        }
+        // ... kod simpan ke Firestore kau yang sedia ada ...
       }
-
       return user;
     } catch (e) {
-      print("J.A.R.V.I.S: Litar Google Register terbakar! -> $e");
+      print("Error Google: $e");
       return null;
     }
   }
 
   // ---------------------------------------------------------
-  // 10. PROTOKOL PEMUSNAHAN (LOGOUT TOTAL)
+  // 10. PROTOKOL PEMUSNAHAN (LOGOUT TOTAL) - VERSI SELAMAT
   // ---------------------------------------------------------
-  Future<void> logoutCaregiver() async {
-    try {
-      await _googleSignIn.signOut();
-      await _auth.signOut();
-      await _secureStorage.delete(key: 'saved_email');
-      await _secureStorage.delete(key: 'saved_password');
-      print("J.A.R.V.I.S: Protokol pemusnahan berjaya. Litar dah suci murni!");
-    } catch (e) {
-      print("J.A.R.V.I.S: Ralat masa logout sial -> $e");
+    Future<void> signOut() async {
+      try {
+        // 🚀 J.A.R.V.I.S: JANGAN panggil _googleSignIn.signOut() kat sini!
+        // Kita cuma keluar dari Firebase session sahaja.
+        // Ini biar jambatan Google kat phone tu 'suam-suam kuku' untuk silent login nanti.
+        await _auth.signOut();
+
+        print("J.A.R.V.I.S: Firebase session ditamatkan. Jambatan Google dikekalkan untuk biometrik.");
+      } catch (e) {
+        print("🚨 Ralat masa logout: $e");
+      }
     }
-  }
 
   // ---------------------------------------------------------
   // 🚀 11. [LITAR BARU] SEDUT SENARAI PESAKIT UNTUK DASHBOARD

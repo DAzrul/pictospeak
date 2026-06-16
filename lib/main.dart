@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; // 🚨 J.A.R.V.I.S: Wajib untuk check kIsWeb
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'core/services/fcm_service.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 
@@ -19,6 +20,7 @@ void main() async {
   // 🚨 J.A.R.V.I.S: Lepaskan lintah hanya kalau kat Mobile.
   // Kat Web (Admin) kita tak pakai SQLite, kita baca direct dari Firebase.
   if (!kIsWeb) {
+    await FcmService.initialize();
     SyncService().syncFromFirebase();
   }
 

@@ -2,9 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 
 class PatientDetailsScreen extends StatefulWidget {
@@ -29,7 +30,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     _currentData = Map.from(widget.patientData);
   }
 
-  // 🚀 LITAR TUKAR GAMBAR PROFIL
   Future<void> _uploadProfilePic() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
@@ -59,20 +59,18 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           _isUploadingPic = false;
         });
 
-        // 🚨 Standard Text (No swearing)
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Update Profile Picture Success"), backgroundColor: Colors.green)
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile picture updated successfully."), backgroundColor: Colors.green));
+        }
       } catch (e) {
         setState(() => _isUploadingPic = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
+        }
       }
     }
   }
 
-  // 🚀 POP-UP EDIT DATA
   void _showEditDialog() {
     final nameCtrl = TextEditingController(text: _currentData['name']);
     final ageCtrl = TextEditingController(text: _currentData['age'].toString());
@@ -91,7 +89,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                   TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
                   TextField(controller: ageCtrl, decoration: const InputDecoration(labelText: 'Age'), keyboardType: TextInputType.number),
                   TextField(controller: conditionCtrl, decoration: const InputDecoration(labelText: 'Condition')),
-                  TextField(controller: pinCtrl, decoration: const InputDecoration(labelText: 'PIN Code (4 Digit)'), maxLength: 4, keyboardType: TextInputType.number),
+                  TextField(controller: pinCtrl, decoration: const InputDecoration(labelText: 'PIN Code (4 Digits)'), maxLength: 4, keyboardType: TextInputType.number),
                 ],
               ),
             ),
@@ -100,7 +98,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               ElevatedButton(
                 onPressed: () async {
                   final user = FirebaseAuth.instance.currentUser;
-
                   await FirebaseFirestore.instance
                       .collection('caregivers')
                       .doc(user!.uid)
@@ -121,10 +118,9 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                   });
 
                   Navigator.pop(context);
-                  // 🚨 Standard Text
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Update Data Success"), backgroundColor: Colors.blue)
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Information updated successfully."), backgroundColor: Colors.blue));
+                  }
                 },
                 child: const Text("SAVE"),
               )
@@ -137,7 +133,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9), // Warna background sejuk macam dlm design
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -158,13 +154,12 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         controller: _tabController,
         children: [
           _buildOverviewTab(),
-          _buildInsightsTab(), // 🚀 Litar UI baru
+          _buildInsightsTab(),
         ],
       ),
     );
   }
 
-  // --- TAB 1: OVERVIEW ---
   Widget _buildOverviewTab() {
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -181,41 +176,28 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                     ? const Icon(Icons.person_rounded, size: 60, color: Colors.white)
                     : null,
               ),
-              if (_isUploadingPic)
-                const Positioned.fill(child: CircularProgressIndicator()),
+              if (_isUploadingPic) const Positioned.fill(child: CircularProgressIndicator()),
               Positioned(
                 bottom: 0, right: 0,
                 child: GestureDetector(
                   onTap: _uploadProfilePic,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: AppTheme.primaryBlue, shape: BoxShape.circle),
-                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                  ),
+                  child: Container(padding: const EdgeInsets.all(8), decoration: const BoxDecoration(color: AppTheme.primaryBlue, shape: BoxShape.circle), child: const Icon(Icons.camera_alt, color: Colors.white, size: 20)),
                 ),
               )
             ],
           ),
         ),
         const SizedBox(height: 30),
-
-        _buildInfoCard("Condition", _currentData['condition'] ?? 'No data', Icons.medical_services_outlined),
+        _buildInfoCard("Condition", _currentData['condition'] ?? 'N/A', Icons.medical_services_outlined),
         _buildInfoCard("Age", "${_currentData['age']} Years Old", Icons.cake_outlined),
-        _buildInfoCard("Relationship", _currentData['relationship'], Icons.family_restroom),
-        _buildInfoCard("Access PIN", _currentData['pin_code'], Icons.lock_outline),
-
+        _buildInfoCard("Relationship", _currentData['relationship'] ?? 'N/A', Icons.family_restroom),
+        _buildInfoCard("Access PIN", _currentData['pin_code'] ?? 'N/A', Icons.lock_outline),
         const SizedBox(height: 20),
-
         ElevatedButton.icon(
           onPressed: _showEditDialog,
           icon: const Icon(Icons.edit_rounded, color: AppTheme.primaryBlue),
           label: const Text("EDIT PATIENT DETAILS", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue.withOpacity(0.1),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
-          ),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.withValues(alpha: 0.1), elevation: 0, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
         )
       ],
     );
@@ -230,139 +212,243 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         children: [
           Icon(icon, color: AppTheme.primaryBlue),
           const SizedBox(width: 15),
-          Column(crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ]),
         ],
       ),
     );
   }
 
-  // --- TAB 2: INSIGHTS (IKUT DESIGN GAMBAR) ---
   Widget _buildInsightsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          // 1. KAD SUMMARY (ATAS)
-          Row(
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Center(child: Text("User not authorized."));
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('caregivers')
+          .doc(user.uid)
+          .collection('patients')
+          .doc(_currentData['patient_id'])
+          .collection('communication_logs')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+        final docs = snapshot.data?.docs ?? [];
+
+        int totalSentencesToday = 0;
+        int positiveMood = 0;
+        int negativeMood = 0;
+        Map<String, int> keywordCounts = {};
+
+        DateTime today = DateTime.now();
+
+        for (var doc in docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
+
+          if (timestamp != null && timestamp.day == today.day && timestamp.month == today.month && timestamp.year == today.year) {
+            totalSentencesToday++;
+          }
+
+          String mood = data['mood'] ?? 'Neutral';
+          if (mood == 'Positive') positiveMood++;
+          if (mood == 'Negative') negativeMood++;
+
+          List<dynamic> items = data['items'] ?? [];
+          for (var item in items) {
+            String wordId = item.toString();
+            keywordCounts[wordId] = (keywordCounts[wordId] ?? 0) + 1;
+          }
+        }
+
+        String overallMood = "Neutral";
+        Color moodColor = Colors.grey;
+        IconData moodIcon = Icons.sentiment_neutral_rounded;
+
+        if (positiveMood > negativeMood) {
+          overallMood = "Positive"; moodColor = Colors.green; moodIcon = Icons.sentiment_very_satisfied_rounded;
+        } else if (negativeMood > positiveMood) {
+          overallMood = "Distressed"; moodColor = Colors.red; moodIcon = Icons.sentiment_very_dissatisfied_rounded;
+        }
+
+        var sortedKeys = keywordCounts.keys.toList()..sort((a, b) => keywordCounts[b]!.compareTo(keywordCounts[a]!));
+        List<String> top4Items = sortedKeys.take(4).toList();
+        List<int> top4Values = top4Items.map((k) => keywordCounts[k]!).toList();
+
+        double maxYGraph = top4Values.isNotEmpty ? top4Values.reduce((a, b) => a > b ? a : b).toDouble() : 10;
+        if (maxYGraph < 10) maxYGraph = 10;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
             children: [
-              _buildSummaryCard("0", "Sentences Today", Icons.chat_bubble_outline_rounded, Colors.blue),
-              const SizedBox(width: 16),
-              _buildSummaryCard("Neutral", "Mood Trend", Icons.sentiment_neutral_rounded, Colors.green),
+              Row(
+                children: [
+                  _buildSummaryCard(totalSentencesToday.toString(), "Sentences Today", Icons.chat_bubble_outline_rounded, Colors.blue),
+                  const SizedBox(width: 16),
+                  _buildSummaryCard(overallMood, "Mood Trend", moodIcon, moodColor),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.insert_chart_outlined, color: Colors.blue, size: 20),
+                        SizedBox(width: 8),
+                        Text('Most Frequent Needs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+
+                    SizedBox(
+                      height: 200,
+                      child: top4Items.isEmpty
+                          ? const Center(child: Text("Insufficient data for charts.", style: TextStyle(color: Colors.grey)))
+                          : BarChart(
+                        BarChartData(
+                          alignment: BarChartAlignment.spaceAround,
+                          maxY: maxYGraph + 2,
+                          barGroups: List.generate(top4Items.length, (index) {
+                            return _makeDynamicBarGroup(index, top4Values[index].toDouble());
+                          }),
+                          titlesData: FlTitlesData(
+                            show: true,
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (value, meta) {
+                                  if (value.toInt() >= top4Items.length) return const Text('');
+                                  String titleRaw = top4Items[value.toInt()];
+                                  String titleFormat = "${titleRaw[0].toUpperCase()}${titleRaw.substring(1).toLowerCase()}";
+                                  return Text(titleFormat, style: const TextStyle(color: Colors.grey, fontSize: 10));
+                                },
+                              ),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 28,
+                                getTitlesWidget: (value, meta) {
+                                  if (value % (maxYGraph > 20 ? 5 : 2) == 0) {
+                                    return Text(value.toInt().toString(), style: const TextStyle(color: Colors.grey, fontSize: 10));
+                                  }
+                                  return const Text('');
+                                },
+                              ),
+                            ),
+                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          ),
+                          gridData: const FlGridData(show: false),
+                          borderData: FlBorderData(show: false),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.access_time_rounded, color: Colors.blue, size: 20),
+                        SizedBox(width: 8),
+                        Text('Communication Log', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    if (docs.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(bottom: 20),
+                          child: Text("No records detected.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        ),
+                      )
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: docs.length > 5 ? 5 : docs.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final data = docs[index].data() as Map<String, dynamic>;
+                          final sentence = data['sentence'] ?? '';
+                          final moodStr = data['mood'] ?? 'Neutral';
+
+                          String timeText = "Just now";
+                          Timestamp? ts = data['timestamp'] as Timestamp?;
+                          if (ts != null) {
+                            timeText = DateFormat('h:mm a, d MMM').format(ts.toDate());
+                          }
+
+                          Color tagColor = Colors.grey;
+                          if (moodStr == 'Positive') tagColor = Colors.green;
+                          if (moodStr == 'Negative') tagColor = Colors.red;
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
+                                  child: const Icon(Icons.record_voice_over, size: 14, color: AppTheme.primaryBlue),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('"$sentence"', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textDark)),
+                                      const SizedBox(height: 4),
+                                      Text(timeText, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(color: tagColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                                  child: Text(moodStr, style: TextStyle(color: tagColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      )
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // 2. KAD GRAF BAR (TENGAH)
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.insert_chart_outlined, color: Colors.blue, size: 20),
-                    SizedBox(width: 8),
-                    Text('Most Frequent Needs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  ],
-                ),
-                const SizedBox(height: 30),
-
-                // GRAF BAR KOSONG (Ikut gambar)
-                SizedBox(
-                  height: 200,
-                  child: BarChart(
-                    BarChartData(
-                      alignment: BarChartAlignment.spaceAround,
-                      maxY: 10, // Maksimum Y-Axis
-                      barGroups: [
-                        _makeEmptyBarGroup(0), // Water
-                        _makeEmptyBarGroup(1), // Food
-                        _makeEmptyBarGroup(2), // Toilet
-                        _makeEmptyBarGroup(3), // Home
-                      ],
-                      titlesData: FlTitlesData(
-                        show: true,
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (value, meta) {
-                              const style = TextStyle(color: Colors.grey, fontSize: 10);
-                              switch (value.toInt()) {
-                                case 0: return const Text('Water', style: style);
-                                case 1: return const Text('Food', style: style);
-                                case 2: return const Text('Toilet', style: style);
-                                case 3: return const Text('Home', style: style);
-                                default: return const Text('');
-                              }
-                            },
-                          ),
-                        ),
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 28,
-                            getTitlesWidget: (value, meta) {
-                              if (value % 2 == 0) { // Tunjuk nombor genap je (0, 2, 4...)
-                                return Text(value.toInt().toString(), style: const TextStyle(color: Colors.grey, fontSize: 10));
-                              }
-                              return const Text('');
-                            },
-                          ),
-                        ),
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      ),
-                      gridData: const FlGridData(show: false),
-                      borderData: FlBorderData(show: false),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // 3. KAD COMMUNICATION LOG (BAWAH)
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.access_time_rounded, color: Colors.blue, size: 20),
-                    SizedBox(width: 8),
-                    Text('Communication Log', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  ],
-                ),
-                SizedBox(height: 30),
-                Center(
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: 20),
-                    child: Text("Tiada log dikesan.", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  // --- HELPER UNTUK UI INSIGHTS ---
   Widget _buildSummaryCard(String value, String title, IconData icon, Color iconColor) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade100)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -374,18 +460,17 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               ],
             ),
             const SizedBox(height: 8),
-            Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
           ],
         ),
       ),
     );
   }
 
-  BarChartGroupData _makeEmptyBarGroup(int x) {
-    // Graf data 0 buat masa sekarang sebab tunggu litar Firebase sedut log sebenar
+  BarChartGroupData _makeDynamicBarGroup(int x, double y) {
     return BarChartGroupData(
       x: x,
-      barRods: [BarChartRodData(toY: 0, color: Colors.blue, width: 16, borderRadius: BorderRadius.circular(4))],
+      barRods: [BarChartRodData(toY: y, color: AppTheme.primaryBlue, width: 16, borderRadius: BorderRadius.circular(4))],
     );
   }
 }
