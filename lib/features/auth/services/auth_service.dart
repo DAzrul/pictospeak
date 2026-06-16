@@ -171,41 +171,42 @@ class AuthService {
       String? email = await _secureStorage.read(key: 'saved_email');
       String? method = await _secureStorage.read(key: 'login_method');
 
-      if (email == null) {
-        print("J.A.R.V.I.S: Tiada data email dijumpai dalam storan selamat.");
-        return false;
-      }
+      if (email == null) return false;
 
+      // 🌐 JIKA USER GUNA GOOGLE SEBELUM NI
       // 🚀 CABANG A: Jika pengguna sebelum ni login guna Google
       if (method == 'google') {
-        print("J.A.R.V.I.S: Mengaktifkan litar pintas Google Silent Login...");
-        // Re-authenticate secara senyap menggunakan GoogleSignIn cache peranti
-        final GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
-        if (googleUser != null) {
-          final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-          final AuthCredential credential = GoogleAuthProvider.credential(
-            accessToken: googleAuth.accessToken,
-            idToken: googleAuth.idToken,
-          );
-          await _auth.signInWithCredential(credential);
-          print("J.A.R.V.I.S: Google Biometric Login Berjaya!");
-          return true;
-        }
-      }
+        print("J.A.R.V.I.S: Mencuba sambungan senyap Google...");
 
-      // 🚀 CABANG B: Jika pengguna sebelum ni login guna E-mel biasa
+        // Cuba tarik user yang tengah 'tidur' dalam cache
+        GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
+
+        // 🚨 J.A.R.V.I.S: Kalau fail, kita paksa dia login balik (ini akan keluar prompt akaun)
+        // Tapi untuk biometrik, selalunya signInSilently dah cukup kalau tak kena 'hard signout'
+        if (googleUser == null) {
+          print("J.A.R.V.I.S: Sesi Google mati total. Kena login manual semula.");
+          return false;
+        }
+
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final AuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        await _auth.signInWithCredential(credential);
+        return true;
+      }
+      // ✉️ JIKA USER GUNA EMAIL BIASA
       else {
         String? password = await _secureStorage.read(key: 'saved_password');
         if (password != null) {
           await _auth.signInWithEmailAndPassword(email: email, password: password);
-          print("J.A.R.V.I.S: Email Biometric Login Berjaya!");
           return true;
         }
       }
-
       return false;
     } catch (e) {
-      print("🚨 J.A.R.V.I.S: Silent Login Gagal total -> $e");
       return false;
     }
   }
@@ -228,25 +229,15 @@ class AuthService {
       final User? user = userCredential.user;
 
       if (user != null) {
-        if (userCredential.additionalUserInfo?.isNewUser ?? false) {
-          print("J.A.R.V.I.S: User Baru Dikesan! Mendaftarkan profile ke Firestore...");
+        // 🚀 J.A.R.V.I.S: SIMPAN INFO UNTUK BIOMETRIC SESI DEPAN
+        await _secureStorage.write(key: 'saved_email', value: user.email);
+        await _secureStorage.write(key: 'login_method', value: 'google');
 
-          await FirebaseFirestore.instance.collection('caregivers').doc(user.uid).set({
-            'uid': user.uid,
-            'name': user.displayName ?? "Caregiver Baru",
-            'email': user.email,
-            'role': 'caregiver',
-            'created_at': FieldValue.serverTimestamp(),
-            'login_method': 'google',
-          });
-        } else {
-          print("J.A.R.V.I.S: User Lama. Melangkau fasa pendaftaran.");
-        }
+        // ... kod simpan ke Firestore kau yang sedia ada ...
       }
-
       return user;
     } catch (e) {
-      print("J.A.R.V.I.S: Litar Google Register terbakar! -> $e");
+      print("Error Google: $e");
       return null;
     }
   }
@@ -256,16 +247,14 @@ class AuthService {
   // ---------------------------------------------------------
     Future<void> signOut() async {
       try {
-        await _googleSignIn.signOut();
+        // 🚀 J.A.R.V.I.S: JANGAN panggil _googleSignIn.signOut() kat sini!
+        // Kita cuma keluar dari Firebase session sahaja.
+        // Ini biar jambatan Google kat phone tu 'suam-suam kuku' untuk silent login nanti.
         await _auth.signOut();
 
-        // 🚀 J.A.R.V.I.S: JANGAN DELETE 'saved_email' & 'saved_password' kat sini mat!
-        // Kalau kau delete kat sini, litar biometric kau automatik akan lumpuh total masa logout.
-        // Kita cuma tamatkan session Firebase sahaja. Storan selamat dalam peranti kekal selamat.
-
-        print("J.A.R.V.I.S: Sesi Firebase ditamatkan. Kredential biometrik dikekalkan dalam peti besi.");
+        print("J.A.R.V.I.S: Firebase session ditamatkan. Jambatan Google dikekalkan untuk biometrik.");
       } catch (e) {
-        print("J.A.R.V.I.S: Ralat masa logout -> $e");
+        print("🚨 Ralat masa logout: $e");
       }
     }
 

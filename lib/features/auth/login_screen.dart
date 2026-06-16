@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/sync_service.dart';
 import 'services/auth_service.dart';
@@ -31,13 +32,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _checkSavedBiometric() async {
+    final prefs = await SharedPreferences.getInstance();
+    bool isEnabledInSettings = prefs.getBool('biometric_enabled') ?? false;
+
     bool hasSession = await _authService.hasSavedBiometricSession();
-    if (hasSession) {
-      setState(() {
-        _hasSavedBiometric = true;
-      });
-      print("J.A.R.V.I.S: Sesi biometrik dikesan! Memunculkan butang fingerprint.");
-    }
+
+    setState(() {
+      // 🚀 Hanya tunjuk butang kalau ada session DAN user dah ON dalam settings
+      _hasSavedBiometric = hasSession && isEnabledInSettings;
+    });
   }
 
   void _navigateToDashboard() {

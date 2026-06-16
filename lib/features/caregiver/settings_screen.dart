@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 🚀 1. TAMBAH IMPORT NI MAT
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 🚀 J.A.R.V.I.S: Wajib untuk litar Password
 import '../../core/theme/app_theme.dart';
 import '../../core/services/local_db.dart';
 import '../../features/auth/change_pin_screen.dart';
@@ -16,6 +17,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  // 🚀 J.A.R.V.I.S: Isytihar AuthService ejen rahsia kita kat sini mat!
+  final AuthService _authService = AuthService();
+
   // --- STATE SETTINGS ---
   bool _lowSensoryMode = false;
   bool _hideDistractions = false;
@@ -29,32 +33,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _ignoreRepeated = true;
   bool _largeTargets = false;
 
+  bool _biometricEnabled = false;
+
   @override
   void initState() {
     super.initState();
-    _loadSettingsData(); // 🚀 2. SEBAIK SAHAJA PAGE DIBUBA, TERUS SEDUT DATA LAMA
+    _loadSettingsData(); // Sedut semua jenis data dari disk peranti sekaligus
+  }
+
+  // 🚀 J.A.R.V.I.S: Litar mengawal pengaktifan opt-in biometrik secara manual
+  void _toggleBiometric(bool value) async {
+    if (value) {
+      // Suruh user scan jari dulu sebelum bagi tukar status switch jadi ON!
+      bool authenticated = await _authService.authenticateWithBiometrics();
+      if (authenticated) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('biometric_enabled', true);
+        setState(() => _biometricEnabled = true);
+        _showSnackBar('Biometrik berjaya diaktifkan!', Colors.green);
+      } else {
+        _showSnackBar('Pengesahan biometrik gagal.', Colors.red);
+      }
+    } else {
+      // Kalau dia nak OFF, terus tutup tanpa kekangan scan
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('biometric_enabled', false);
+      setState(() => _biometricEnabled = false);
+      _showSnackBar('Biometrik dinyahaktifkan.', Colors.orange);
+    }
   }
 
   // 🚀 3. LITAR MEMBACA DATA DARI STORAN PERANTI
   void _loadSettingsData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      // Kalau data tak wujud lagi (first time install), dia akan guna nilai default 1.0
       _voiceSpeed = prefs.getDouble('tts_speed') ?? 1.0;
       _voicePitch = prefs.getDouble('tts_pitch') ?? 1.0;
       _lowSensoryMode = prefs.getBool('low_sensory') ?? false;
       _hideDistractions = prefs.getBool('hide_distractions') ?? false;
       _holdDelay = prefs.getDouble('hold_delay') ?? 500.0;
       _largeTargets = prefs.getBool('large_targets') ?? false;
+
+      // 🚀 J.A.R.V.I.S: Kita sumbat bacaan status biometrik terus kat sini biar kemas!
+      _biometricEnabled = prefs.getBool('biometric_enabled') ?? false;
     });
-    print("J.A.R.V.I.S: Data konfigurasi berjaya dipulihkan! Speed: $_voiceSpeed, Pitch: $_voicePitch");
+    print("J.A.R.V.I.S: Konfigurasi sistem & status biometrik dipulihkan! Biometric: $_biometricEnabled");
   }
 
   // 🚀 4. LITAR KEMASKINI KELAJUAN & SIMPAN TERUS KE STORAN
   void _updateVoiceSpeed(double newSpeed) async {
     setState(() => _voiceSpeed = newSpeed);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('tts_speed', newSpeed); // Hafal masuk disk!
+    await prefs.setDouble('tts_speed', newSpeed);
     print("J.A.R.V.I.S: Kelajuan $_voiceSpeed disimpan secara kekal.");
   }
 
@@ -62,37 +92,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _updateVoicePitch(double newPitch) async {
     setState(() => _voicePitch = newPitch);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('tts_pitch', newPitch); // Hafal masuk disk!
+    await prefs.setDouble('tts_pitch', newPitch);
     print("J.A.R.V.I.S: Nada (Pitch) $_voicePitch disimpan secara kekal.");
   }
 
-  // 🚨 J.A.R.V.I.S: Fungsi Logout Penuh
+  // 🚀 J.A.R.V.I.S: Fungsi memaparkan maklum balas terapung (SnackBar) yang hilang tadi
+  void _showSnackBar(String message, Color color) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message, style: const TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: color,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  // =========================================================
+  // 🔐 J.A.R.V.I.S: LITAR SET/TUKAR PASSWORD (Firebase Engine)
+  // =========================================================
+  void _showChangePasswordDialog(BuildContext context) {
+    final passwordController = TextEditingController();
+    bool isObscured = true;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text('Set / Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Masukkan kata laluan baru anda (Minima 6 aksara).', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: isObscured,
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      suffixIcon: IconButton(
+                        icon: Icon(isObscured ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                        onPressed: () => setStateDialog(() => isObscured = !isObscured),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  onPressed: () async {
+                    String newPass = passwordController.text.trim();
+                    if (newPass.length < 6) {
+                      _showSnackBar('Password terlalu pendek! Minima 6 aksara.', Colors.red);
+                      return;
+                    }
+
+                    Navigator.pop(context); // Tutup dialog dulu
+
+                    try {
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user != null) {
+                        await user.updatePassword(newPass);
+                        _showSnackBar('BOOM! Password berjaya dikemaskini!', Colors.green);
+                      }
+                    } on FirebaseAuthException catch (e) {
+                      if (e.code == 'requires-recent-login') {
+                        _showSnackBar('🚨 Sesi tamat tempoh! Sila LOGOUT dan LOGIN semula sebelum menukar password.', Colors.red.shade700);
+                      } else {
+                        _showSnackBar('Gagal: ${e.message}', Colors.red);
+                      }
+                    } catch (e) {
+                      _showSnackBar('Litar terbakar: $e', Colors.red);
+                    }
+                  },
+                  child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          }
+      ),
+    );
+  }
+
   // 🚨 J.A.R.V.I.S: Fungsi Logout Penuh (Versi Kebal Tetapan TTS)
   void _handleSignOut(BuildContext context) async {
     try {
       print("🚨 J.A.R.V.I.S: Mengaktifkan Protokol Pemusnahan Sesi...");
 
-      // 1. Tembak mati SQLite (Elak hantu Acc A kacau Acc B)
       await LocalDB().deleteAllPictograms();
-
-      // 2. PANGGIL PROTOKOL PEMUSNAHAN TOTAL (AuthService)
-      // Ini akan bunuh Firebase session dan Google Auth Cache
       await AuthService().signOut();
 
-      // 3. Ambil instance SharedPreferences
       final prefs = await SharedPreferences.getInstance();
 
-      // 4. 🚀 LITAR PENAPISAN KEKAL (Safe Wipe)
-      // Kita buang status log masuk sahaja, JANGAN padam 'tts_speed' dan 'tts_pitch'!
+      // 🚀 LITAR PENAPISAN KEKAL (Safe Wipe)
       await prefs.remove('saved_email');
       await prefs.remove('saved_password');
       await prefs.remove('is_patient_logged_in');
       await prefs.remove('patient_id');
       await prefs.remove('patient_name');
 
-      print("J.A.R.V.I.S: Sesi berjaya diclearkan. Tetapan TTS Engine dikekalkan dalam peranti.");
+      print("J.A.R.V.I.S: Sesi berjaya diclearkan. Tetapan TTS Engine & Biometrik dikekalkan.");
 
-      // 5. Tendang user ke Role Selection Screen dan buang semua history laluan (route)
       if (context.mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -102,7 +208,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       print("🚨 J.A.R.V.I.S ERROR masa logout: $e");
-      // Fallback sekiranya litar utama sangkut, tetap tendang user keluar demi keselamatan data
       if (context.mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -157,6 +262,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildListTile('Change Security PIN', 'Update your 4-digit access code', Icons.lock_reset_rounded, () {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ChangePinScreen()));
                 }),
+                const Divider(height: 1),
+                // 🚀 J.A.R.V.I.S: Ini butang baru untuk Set/Change Password tu!
+                _buildListTile('Set / Change Password', 'Update your login password', Icons.password_rounded, () {
+                  _showChangePasswordDialog(context);
+                }),
               ],
             ),
           ),
@@ -170,6 +280,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
             child: Column(
               children: [
+                // 🚀 J.A.R.V.I.S: Switch Opt-in Biometric Universal
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Enable Biometric Login', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: const Text('Masuk ke portal menggunakan cap jari/muka', style: TextStyle(fontSize: 11)),
+                  value: _biometricEnabled,
+                  onChanged: _toggleBiometric,
+                  activeColor: AppTheme.primaryBlue,
+                ),
+                const Divider(height: 1),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Low Sensory Theme', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -200,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 3. TTS ENGINE (Dah pakai fungsi penyelamat)
+          // 3. TTS ENGINE
           _buildSectionHeader(Icons.record_voice_over_outlined, 'TTS Engine', 'Configure text-to-speech voice settings'),
           const SizedBox(height: 12),
           Container(
@@ -283,7 +403,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- HELPER WIDGETS KEKAL SAMA ---
+  // --- HELPER WIDGETS ---
   Widget _buildListTile(String title, String sub, IconData icon, VoidCallback onTap) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -307,7 +427,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All data has been wiped!'), backgroundColor: Colors.black));
+              _showSnackBar('All data has been wiped!', Colors.black);
             },
             child: const Text('YES, DELETE EVERYTHING', style: TextStyle(color: Colors.white)),
           ),
@@ -337,17 +457,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             Row(
               children: [
-                // Paparan nilai
                 Text(
                   isMs ? '${val.toInt()}ms' : '${val.toStringAsFixed(1)}x',
                   style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryBlue),
                 ),
                 const SizedBox(width: 8),
-                // 🚀 BUTANG RESET KE NEUTRAL (1.0 atau 500ms)
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.grey),
-                  onPressed: () => onChanged(isMs ? 500.0 : 1.0), // Tembak balik ke nilai neutral
+                  onPressed: () => onChanged(isMs ? 500.0 : 1.0),
                   tooltip: 'Reset to Neutral',
                 ),
               ],
@@ -358,8 +476,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           value: val,
           min: min,
           max: max,
-          // 🚀 DIVISIONS: Buat takuk supaya senang nak snap ke 1.0
-          // Untuk 0.5 ke 2.0 (jarak 1.5), kita buat 15 takuk supaya setiap snap adalah 0.1
           divisions: isMs ? 20 : 14,
           activeColor: AppTheme.primaryBlue,
           inactiveColor: Colors.blue.shade50,
