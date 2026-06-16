@@ -32,6 +32,8 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   bool _useLargeTargets = false;
   double _selectDelay = 500.0;
 
+  Map<String, int> _globalFrequencyMap = {};
+
   // =========================================================
   // 🧠 J.A.R.V.I.S: Otak AI Statik (Versi Penuh / Full Mapping)
   // =========================================================
@@ -156,7 +158,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   }
 
   // =========================================================
-  // 🧠 J.A.R.V.I.S MACHINE LEARNING: Bina Otak Peribadi
+  // 🧠 J.A.R.V.I.S MACHINE LEARNING: Bina Otak Peribadi + Kira Freq Grid
   // =========================================================
   Future<void> _buildPersonalizedBrain() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -166,7 +168,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     if (user == null || patientId == null) return;
 
     try {
-      print("🚀 J.A.R.V.I.S: Menyelam masuk ke memori pesakit untuk melatih AI...");
+      print("🚀 J.A.R.V.I.S: Menyelam masuk ke memori pesakit untuk susun semula kedudukan Grid...");
 
       final querySnapshot = await FirebaseFirestore.instance
           .collection('caregivers')
@@ -175,36 +177,46 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           .doc(patientId)
           .collection('communication_logs')
           .orderBy('timestamp', descending: true)
-          .limit(100)
+          .limit(100) // Ambil 100 log terakhir untuk analisis trend semasa
           .get();
 
       Map<String, Map<String, int>> tempBrain = {};
+      Map<String, int> tempFrequency = {}; // Tempat simpan kiraan kekerapan baru
 
       for (var doc in querySnapshot.docs) {
         List<dynamic> items = doc.data()['items'] ?? [];
 
-        for (int i = 0; i < items.length - 1; i++) {
+        for (int i = 0; i < items.length; i++) {
           String currentWord = items[i].toString();
-          String nextWord = items[i + 1].toString();
 
-          if (!tempBrain.containsKey(currentWord)) {
-            tempBrain[currentWord] = {};
+          // 📊 Kira kekerapan global untuk susunan grid utama
+          tempFrequency[currentWord] = (tempFrequency[currentWord] ?? 0) + 1;
+
+          // Logik Next-Word Prediction asal kau
+          if (i < items.length - 1) {
+            String nextWord = items[i + 1].toString();
+            if (!tempBrain.containsKey(currentWord)) {
+              tempBrain[currentWord] = {};
+            }
+            tempBrain[currentWord]![nextWord] = (tempBrain[currentWord]![nextWord] ?? 0) + 1;
           }
-          tempBrain[currentWord]![nextWord] = (tempBrain[currentWord]![nextWord] ?? 0) + 1;
         }
       }
 
       if (mounted) {
-        setState(() => _personalizedPredictions = tempBrain);
+        setState(() {
+          _personalizedPredictions = tempBrain;
+          _globalFrequencyMap = tempFrequency; // Simpan data kekerapan ke dalam state
+        });
       }
-      print("✅ J.A.R.V.I.S: Otak peribadi siap dilatih! Corak dikesan: $_personalizedPredictions");
+      print("✅ J.A.R.V.I.S: Susunan frekuensi grid berjaya dikira! -> $_globalFrequencyMap");
     } catch (e) {
-      print("🚨 J.A.R.V.I.S ERROR: Gagal bina otak AI -> $e");
+      print("🚨 J.A.R.V.I.S ERROR: Gagal bina susunan frekuensi -> $e");
     }
   }
 
   // =========================================================
-  // 💾 J.A.R.V.I.S DATA LOGGER (VERSI AUTO-UPDATE LAST ACTIVE)
+  // 💾 J.A.R.V.I.S DATA LOGGER (VERSI AUTO-UPDATE LAST ACTIVE & GLOBAL ANALYTICS)
   // =========================================================
   Future<void> _logCommunicationToFirebase(String fullSentence, List<String> itemIds) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -226,7 +238,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     if (itemIds.any((id) => ['sad', 'angry', 'pain', 'dizzy', 'noisy'].contains(id))) mood = "Negative";
 
     try {
-      // Simpan log ayat
+      // 1. Simpan log ayat (Untuk rekod peribadi pesakit/caregiver)
       await FirebaseFirestore.instance
           .collection('caregivers')
           .doc(user.uid)
@@ -240,7 +252,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // Update Last Active
+      // 2. Update Last Active
       await FirebaseFirestore.instance
           .collection('caregivers')
           .doc(user.uid)
@@ -249,6 +261,24 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           .update({
         'last_active': FieldValue.serverTimestamp(),
       });
+
+      // =========================================================
+      // 🔥 3. LITAR SUPERADMIN: HANTAR DATA KE GLOBAL ANALYTICS
+      // =========================================================
+      // Loop setiap pictogram yang ditekan dan tambah +1 kat table pusat
+      for (String id in itemIds) {
+        await FirebaseFirestore.instance
+            .collection('global_analytics')
+            .doc(id)
+            .set({
+          'pic_id': id,
+          'total_usage': FieldValue.increment(1), // Auto tambah 1!
+          'last_triggered': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)); // merge: true supaya tak padam data lama
+      }
+
+      print("✅ J.A.R.V.I.S: Data berjaya ditembak ke pangkalan peribadi & SuperAdmin!");
+
     } catch (e) {
       print("🚨 J.A.R.V.I.S ERROR: Tempatan terbakar masa nak save -> $e");
     }
@@ -409,8 +439,43 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     });
   }
 
+  // =========================================================
+  // 🎯 LITAR SUSUNAN DYNAMIC GRID (VERSI KUASA ANAK-BAPAK)
+  // =========================================================
+
+  // Fungsi khas untuk kira frekuensi (Bapak sedut markah anak)
+  int _calculateItemFrequency(Map<String, dynamic> item) {
+    bool isFolder = item['isFolder'] ?? false;
+    String id = item['id'] ?? '';
+
+    if (!isFolder) {
+      // Kalau ni gambar biasa (Tired, Yes, No) -> Ambil direct dari rekod
+      return _globalFrequencyMap[id] ?? 0;
+    } else {
+      // Kalau ni FOLDER (Health, Body) -> Campurkan semua markah anak-anak dia
+      int totalFolderFreq = 0;
+      var children = _mergedData.where((child) => child['folder'] == id);
+      for (var child in children) {
+        totalFolderFreq += (_globalFrequencyMap[child['id']] ?? 0);
+      }
+      return totalFolderFreq; // Pulangkan markah hasil gabungan
+    }
+  }
+
   List<Map<String, dynamic>> get _currentDisplayItems {
-    return _mergedData.where((item) => item['folder'] == _currentFolder).toList();
+    // 1. Ambil list item yang sepadan dengan folder semasa
+    List<Map<String, dynamic>> itemsInFolder = _mergedData.where((item) => item['folder'] == _currentFolder).toList();
+
+    // 2. Susun item guna enjin pengiraan baru
+    itemsInFolder.sort((a, b) {
+      int freqA = _calculateItemFrequency(a);
+      int freqB = _calculateItemFrequency(b);
+
+      // Susun secara menurun (Yang markah tinggi, tamak duduk atas!)
+      return freqB.compareTo(freqA);
+    });
+
+    return itemsInFolder;
   }
 
   void _removeItem(int index) => setState(() => _selectedItems.removeAt(index));

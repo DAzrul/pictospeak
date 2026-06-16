@@ -41,7 +41,7 @@ class MyApp extends StatelessWidget {
       // Kalau kat Browser -> Terus ke Admin Dashboard
       // Kalau kat Android/iOS -> Pergi ke Splash Screen Pesakit
       home: kIsWeb
-          ? const SplashScreen()
+          ? const AdminDashboardScreen()
           : const SplashScreen(),
     );
   }
