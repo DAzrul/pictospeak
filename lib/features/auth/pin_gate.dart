@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/services/sync_service.dart'; // 🚨 J.A.R.V.I.S: Import lintah
+import '../../core/services/sync_service.dart'; // 🚨 J.A.R.V.I.S: Cloud sync protocol
 import 'services/auth_service.dart';
 import '../caregiver/caregiver_dashboard.dart';
 
@@ -16,12 +16,12 @@ class _PinGateScreenState extends State<PinGateScreen> {
   bool isError = false;
   final AuthService _authService = AuthService();
 
-  // 🚨 J.A.R.V.I.S: Fungsi navigasi suci bersih
+  // 🚨 J.A.R.V.I.S: Clean navigation protocol
   void _navigateToDashboard() {
-    // Kejutkan lintah awan
+    // Trigger cloud synchronization
     SyncService().syncFromFirebase();
 
-    // Bakar jambatan belakang!
+    // Clear the navigation stack to prevent back-tracking
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const CaregiverDashboard()),
@@ -41,56 +41,56 @@ class _PinGateScreenState extends State<PinGateScreen> {
       }
     });
 
-    // 🚨 J.A.R.V.I.S: Bila dah masuk 4 digit, kita run SILENT LOGIN
+    // 🚨 J.A.R.V.I.S: Execute silent login upon 4-digit entry completion
     if (enteredPin.length == 4) {
       bool isValid = await _authService.verifyPin(enteredPin);
 
       if (isValid) {
-        // 1. PIN betul! Sekarang kita pecah masuk Firebase secara senyap
+        // 1. PIN verified. Initiating silent Firebase authentication.
         bool loggedIn = await _authService.silentLogin();
 
         if (loggedIn && mounted) {
-          // 2. Firebase dah kenal kita, terus masuk Dashboard!
+          // 2. Firebase session established. Proceeding to Dashboard.
           _navigateToDashboard();
         } else {
-          // Kalau PIN betul tapi Firebase reject (mungkin tukar password)
+          // Handle Firebase rejection despite correct PIN (e.g., credentials changed)
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Sesi tamat! Sila login guna e-mel semula.'), backgroundColor: Colors.orange),
+              const SnackBar(content: Text('Session expired. Please log in again using your email.'), backgroundColor: Colors.orange),
             );
-            Navigator.pop(context); // Suruh dia login manual balik
+            Navigator.pop(context); // Redirect to manual login
           }
         }
       } else {
-        // PIN salah!
+        // Invalid PIN handling
         if (mounted) {
           setState(() {
             isError = true;
-            enteredPin = ''; // Reset kotak
+            enteredPin = ''; // Reset input field
           });
         }
       }
     }
   }
 
-  // 🚨 FUNGSI NI KENA ADA DALAM pin_gate_screen.dart
+  // 🚨 J.A.R.V.I.S: Biometric Handler Protocol
   void _handleBiometric() async {
-    // 1. Scan jari dulu
+    // 1. Initiate biometric scan
     bool authenticated = await _authService.authenticateWithBiometrics();
 
     if (authenticated) {
-      // 🚨 J.A.R.V.I.S: JANGAN TERUS MASUK DASHBOARD LAGI!
-      // Kita kena bagi Firebase kenal kita dulu.
+      // 🚨 J.A.R.V.I.S: DO NOT PROCEED TO DASHBOARD IMMEDIATELY!
+      // Firebase session must be re-authenticated first.
       bool loggedIn = await _authService.silentLogin();
 
       if (loggedIn && mounted) {
-        // Firebase dah bangun, baru kita tembus masuk Dashboard
+        // Firebase session active, routing to Dashboard.
         _navigateToDashboard();
       } else {
-        // Kalau gagal (contoh: internet takde atau password dah tukar)
+        // Handle failure (e.g., offline or credentials changed)
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sesi tamat! Sila login guna e-mel semula.'), backgroundColor: Colors.orange),
+            const SnackBar(content: Text('Session expired. Please log in again using your email.'), backgroundColor: Colors.orange),
           );
         }
       }
@@ -115,7 +115,7 @@ class _PinGateScreenState extends State<PinGateScreen> {
             ),
             boxShadow: value == 'clear' || value == 'back' ? [] : [
               BoxShadow(
-                // 🚨 UBAT WARNING withOpacity
+                // 🚨 J.A.R.V.I.S: Opacity warning fix (withValues)
                 color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
@@ -165,7 +165,7 @@ class _PinGateScreenState extends State<PinGateScreen> {
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.all(16),
-                        // 🚨 UBAT WARNING withOpacity
+                        // 🚨 J.A.R.V.I.S: Opacity warning fix (withValues)
                         decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
                         child: const Icon(Icons.fingerprint, size: 40, color: AppTheme.primaryBlue),
                       ),

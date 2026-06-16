@@ -12,7 +12,7 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
-  // 🚀 J.A.R.V.I.S: Litar Sejarah Pergerakan
+  // 🚀 Protocol: Navigation history management
   String? _currentFolder;
   final List<String> _folderHistory = [];
 
@@ -75,36 +75,38 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
           final docs = snapshot.data?.docs ?? [];
           if (docs.isEmpty) {
-            return const Center(child: Text("Library kosong.\nKlik Add Custom.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)));
+            return const Center(
+              child: Text(
+                  "Library is empty.\nClick 'Add Custom' to begin.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey)
+              ),
+            );
           }
 
           // ==========================================
-          // 🚀 J.A.R.V.I.S: LOGIK PENGELOMPOKAN (FIXED)
+          // 🚀 Protocol: Content grouping logic
           // ==========================================
 
-          // 1. Cari Folder yang patut muncul kat level ni
+          // 1. Identify folders to display at current level
           Set<String> displayFolders = {};
           for (var doc in docs) {
             final data = doc.data() as Map<String, dynamic>;
             String? parent = data['parent_folder'];
             String category = data['category'] ?? 'uncategorized';
 
-            // Jika di HOME: Tunjuk unik category yang parent_folder dia NULL
             if (_currentFolder == null) {
               if (parent == null) {
                 displayFolders.add(category);
               }
-            }
-            // Jika dalam folder X: Tunjuk unik category yang parent_folder dia adalah X
-            else {
+            } else {
               if (parent == _currentFolder) {
                 displayFolders.add(category);
               }
             }
           }
 
-          // 2. Cari Piktogram (File) yang patut muncul kat level ni
-          // File muncul kalau category dia SEBIJIK macam folder yang tengah dibuka
+          // 2. Identify files to display at current level
           var filteredFiles = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             return data['category'] == _currentFolder;
@@ -121,10 +123,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             itemCount: totalItems,
             itemBuilder: (context, index) {
               if (index < folderList.length) {
-                // Render Folder
                 return _buildFolderCard(folderList[index], docs);
               } else {
-                // Render Piktogram
                 final fileData = filteredFiles[index - folderList.length].data() as Map<String, dynamic>;
                 return _buildCustomIconCard(fileData);
               }
@@ -136,7 +136,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Widget _buildFolderCard(String folderName, List<QueryDocumentSnapshot> allDocs) {
-    // 🚀 Kira berapa barang dlm kategori ni + berapa barang dlm sub-folder dia
     int itemCount = allDocs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       return data['category'] == folderName || data['parent_folder'] == folderName;
@@ -154,8 +153,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withOpacity(0.1), blurRadius: 10)],
-          border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.2), width: 2),
+          boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.1), blurRadius: 10)],
+          border: Border.all(color: AppTheme.primaryBlue.withValues(alpha: 0.2), width: 2),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -181,7 +180,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(

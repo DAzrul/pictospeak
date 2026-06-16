@@ -483,7 +483,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   void _clearAllItems() => setState(() => _selectedItems.clear());
 
   // =========================================================
-  // 🚨 J.A.R.V.I.S: PROTOKOL KECEMASAN (TEMBAK KE AWAN)
+  // 🚨 J.A.R.V.I.S: PROTOKOL KECEMASAN MUTAHIR (SOS SYSTEM)
   // =========================================================
   Future<void> _triggerSOS() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -492,18 +492,46 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     String? patientId = prefs.getString('patient_id');
     String patientName = prefs.getString('patient_name') ?? "Pesakit Tanpa Nama";
 
-    if (user != null && patientId != null) {
+    if (user == null || patientId == null) {
+      print("🚨 J.A.R.V.I.S Error: Identiti hilang. Tak boleh lancar SOS!");
+      return;
+    }
+
+    try {
+      // 1. Bunyikan Siren Kat Fon Pesakit Dulu
+      await _ttsService.stop();
+      await _ttsService.speak("Kecemasan! Saya perlukan bantuan!", lang: "ms-MY");
+
+      // 2. Tembak Peluru SOS ke Cloud Firestore
       await FirebaseFirestore.instance.collection('sos_alerts').add({
         'caregiver_id': user.uid,
         'patient_id': patientId,
         'patient_name': patientName,
+        'status': 'ACTIVE', // Status kritikal
         'timestamp': FieldValue.serverTimestamp(),
-        'status': 'ACTIVE',
       });
-    }
 
-    await _ttsService.stop();
-    await _ttsService.speak("Kecemasan! Saya perlukan bantuan!", lang: "ms-MY");
+      print("✅ J.A.R.V.I.S: Isyarat SOS telah berjaya ditembak ke pangkalan utama!");
+
+      // 3. Tunjuk Snackbar kat skrin pesakit supaya dia tahu amaran dah dihantar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade700,
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 10),
+                Text("Bantuan Sedang Dipanggil!", style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      print("🚨 J.A.R.V.I.S Error: SOS gagal dilancarkan -> $e");
+    }
   }
 
   @override

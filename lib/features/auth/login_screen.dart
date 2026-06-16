@@ -57,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      _showSnackBar('E-mel & Password wajib isi babi!', Colors.orange);
+      _showSnackBar('Please enter both email and password.', Colors.orange);
       return;
     }
 
@@ -68,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (user != null) {
       if (mounted) _navigateToDashboard();
     } else {
-      _showSnackBar('Login Gagal. Salah info ni mat.', Colors.red);
+      _showSnackBar('Login failed. Please check your credentials and try again.', Colors.red);
     }
   }
 
@@ -79,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await _authService.signInWithGoogle();
 
       if (user != null) {
-        print("J.A.R.V.I.S: Login Google Berjaya. Menghafal sesi untuk Biometric...");
+        print("J.A.R.V.I.S: Google Login successful. Saving session for Biometric...");
 
         // 🚀 KUNCI KESELAMATAN: Hafal email & kaedah login google ke secure storage
         final secureStorage = const FlutterSecureStorage();
@@ -89,12 +89,12 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) _navigateToDashboard();
       } else {
         setState(() => _isLoading = false);
-        _showSnackBar('Login dibatalkan oleh pengguna.', Colors.orange);
+        _showSnackBar('Login cancelled by user.', Colors.orange);
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      print("J.A.R.V.I.S: Ralat Kritikal Google Login -> $e");
-      _showSnackBar('Ralat: Sila check internet atau SHA-1 Firebase kau.', Colors.red);
+      print("J.A.R.V.I.S: Critical Google Login Error -> $e");
+      _showSnackBar('An error occurred. Please check your connection and try again.', Colors.red);
     }
   }
 
@@ -112,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (loggedIn) {
         _navigateToDashboard();
       } else {
-        _showSnackBar('Sesi biometric tamat tempoh. Sila login manual semula.', Colors.orange);
+        _showSnackBar('Biometric session expired. Please log in manually.', Colors.orange);
       }
     }
   }

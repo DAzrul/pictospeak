@@ -34,45 +34,54 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     _startSosRadar(); // 🚀 Hidupkan radar masa Dashboard dibuka!
   }
 
-  // 🚨 LITAR RADAR SOS (VERSI FILTER PENJAGA)
+  // =========================================================
+  // 🚨 LITAR RADAR SOS (VERSI QUEUE BERGILIR - KALIS MULTI-PATIENT)
+  // =========================================================
   void _startSosRadar() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     _sosSubscription = FirebaseFirestore.instance
         .collection('sos_alerts')
-        .where('caregiver_id', isEqualTo: user.uid) // 🚀 PENTING: Dengar pesakit sendiri je!
+        .where('caregiver_id', isEqualTo: user.uid)
         .where('status', isEqualTo: 'ACTIVE')
         .snapshots()
         .listen((snapshot) {
 
-      // Loop untuk cari dokumen yang BARU masuk je
-      for (var change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.added && !_isSosActive) {
-          final data = change.doc.data() as Map<String, dynamic>;
-          final docId = change.doc.id;
-          String pName = data['patient_name'] ?? 'Pesakit';
+      // Kalau takde SOS langsung, diam je.
+      if (snapshot.docs.isEmpty) return;
 
-          _triggerSosAlarm(pName, docId);
-        }
-      }
+      // Kalau litar tengah sibuk handle pesakit A, abaikan dulu.
+      // Jangan risau, Firestore akan trigger stream ni balik lepas kita setel pesakit A.
+      if (_isSosActive) return;
+
+      // 🚀 J.A.R.V.I.S: Kunci litar & ambil dokumen TERATAS (First in line)
+      _isSosActive = true;
+
+      final data = snapshot.docs.first.data() as Map<String, dynamic>;
+      final targetPatientId = data['patient_id'];
+      String pName = data['patient_name'] ?? 'Pesakit';
+
+      // Hantar ID Pesakit, bukan ID dokumen SOS, supaya kita boleh bunuh SPAM pesakit ni je
+      _triggerSosAlarm(pName, targetPatientId);
     });
   }
 
-  // 🚨 LITAR PENGGERA & POP-UP (KALIS OVERFLOW)
-  void _triggerSosAlarm(String patientName, String docId) async {
-    setState(() => _isSosActive = true);
+  // =========================================================
+  // 🚨 LITAR PENGGERA & POP-UP (VERSI TARGETED STRIKE)
+  // =========================================================
+  void _triggerSosAlarm(String patientName, String targetPatientId) async {
+    setState(() {});
 
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.loop);
       await _audioPlayer.play(AssetSource('sounds/siren.mp3'));
     } catch (e) {
-      print("Siren tak jumpa : $e");
+      print("🚨 J.A.R.V.I.S: Siren rosak -> $e");
     }
 
     if (!mounted) return;
 
-    // Tembak Pop-up Merah Gergasi kat muka Penjaga
     showDialog(
         context: context,
         barrierDismissible: false,
@@ -80,12 +89,11 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
           return AlertDialog(
             backgroundColor: Colors.red.shade600,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: Row(
+            title: const Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 40),
-                const SizedBox(width: 10),
-                // 🚀 J.A.R.V.I.S FIX: Pakai Expanded hilangkan error overflow
-                const Expanded(
+                Icon(Icons.warning_amber_rounded, color: Colors.white, size: 40),
+                SizedBox(width: 10),
+                Expanded(
                   child: Text(
                       "KECEMASAN SOS!",
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)
@@ -100,16 +108,35 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
-                    // 1. Matikan bunyi
                     await _audioPlayer.stop();
 
-                    // 2. Padam/Update status SOS dlm Firestore
-                    await FirebaseFirestore.instance.collection('sos_alerts').doc(docId).update({
-                      'status': 'RESOLVED',
-                    });
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user != null) {
+                      // 🚀 J.A.R.V.I.S TARGETED STRIKE:
+                      // Cari SOS untuk PESAKIT INI SAHAJA. Biarkan pesakit lain punya SOS hidup.
+                      var activeSosDocs = await FirebaseFirestore.instance
+                          .collection('sos_alerts')
+                          .where('caregiver_id', isEqualTo: user.uid)
+                          .where('patient_id', isEqualTo: targetPatientId) // 🔥 INI PENYELAMAT NYA!
+                          .where('status', isEqualTo: 'ACTIVE')
+                          .get();
 
-                    setState(() => _isSosActive = false);
-                    if (context.mounted) Navigator.pop(context); // Tutup dialog
+                      WriteBatch batch = FirebaseFirestore.instance.batch();
+                      for (var doc in activeSosDocs.docs) {
+                        batch.update(doc.reference, {'status': 'RESOLVED'});
+                      }
+                      await batch.commit();
+                    }
+
+                    // 🚀 Buka balik mangga litar.
+                    // Sebaik sahaja database update, stream akan berjalan balik.
+                    // Kalau ada Patient B tengah tunggu, pop-up baru akan terus keluar!
+                    _isSosActive = false;
+
+                    if (context.mounted) {
+                      setState(() {});
+                      Navigator.pop(context);
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,

@@ -13,7 +13,12 @@ class SelectPatientScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text("Pilih Profil Anda", style: TextStyle(color: Colors.black)), backgroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(
+        title: const Text("Select Profile", style: TextStyle(color: Colors.black)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black),
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('caregivers')
@@ -21,27 +26,53 @@ class SelectPatientScreen extends StatelessWidget {
             .collection('patients')
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
           final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) return const Center(child: Text("Tiada pesakit berdaftar babi. Tanya penjaga."));
+          if (docs.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Text(
+                  "No patients registered. Please contact your caregiver.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                ),
+              ),
+            );
+          }
 
           return GridView.builder(
             padding: const EdgeInsets.all(24),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16
+            ),
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
               return InkWell(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => PatientPinScreen(patientData: data))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => PatientPinScreen(patientData: data))
+                ),
                 child: Container(
-                  decoration: BoxDecoration(color: AppTheme.primaryBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(24)),
+                  decoration: BoxDecoration(
+                      color: AppTheme.primaryBlue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24)
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(Icons.face_rounded, size: 60, color: AppTheme.primaryBlue),
                       const SizedBox(height: 12),
-                      Text(data['name'] ?? 'Pesakit', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(
+                          data['name'] ?? 'Patient',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                      ),
                     ],
                   ),
                 ),

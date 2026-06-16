@@ -13,7 +13,7 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // --- CONTROLLERS (Fokus Caregiver Je Mat) ---
+  // --- CONTROLLERS ---
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
@@ -37,7 +37,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  // 🚀 J.A.R.V.I.S: Sedut data dari dokumen Caregiver
+  // 🚀 Protocol: Fetch caregiver data from Firestore
   Future<void> _fetchCaregiverData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -53,13 +53,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           });
         }
       } catch (e) {
-        print("🚨 Error sedut data: $e");
+        debugPrint("Error fetching profile data: $e");
       }
     }
     if (mounted) setState(() => _isLoading = false);
   }
 
-  // 🚀 J.A.R.V.I.S: Simpan data balik ke dokumen Caregiver
+  // 🚀 Protocol: Update caregiver profile data
   Future<void> _saveProfileData() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isSaving = true);
@@ -77,14 +77,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Profile Caregiver Berjaya Diupdate! 🦾'), backgroundColor: Colors.green),
+              const SnackBar(content: Text('Profile updated successfully.'), backgroundColor: Colors.green),
             );
             Navigator.pop(context);
           }
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Update Gagal: $e'), backgroundColor: Colors.red),
+              SnackBar(content: Text('Update failed: $e'), backgroundColor: Colors.red),
             );
           }
         }
@@ -119,11 +119,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 _buildAvatar(),
                 const SizedBox(height: 32),
 
-                // --- CARD: INFO PERIBADI ---
+                // --- CARD: PERSONAL INFORMATION ---
                 _buildCard([
                   _buildSectionTitle('Personal Info', Icons.person_outline_rounded),
                   const SizedBox(height: 16),
-                  _buildTextField(_nameController, 'Your Full Name', Icons.badge_outlined),
+                  _buildTextField(_nameController, 'Full Name', Icons.badge_outlined),
                   const SizedBox(height: 16),
                   _buildTextField(_phoneController, 'Primary Phone Number', Icons.phone_android_outlined, isNumber: true),
                 ]),
@@ -155,7 +155,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget _buildAvatar() {
     return CircleAvatar(
       radius: 50,
-      backgroundColor: AppTheme.primaryBlue.withOpacity(0.1),
+      backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.1),
       child: const Icon(Icons.person, size: 50, color: AppTheme.primaryBlue),
     );
   }
@@ -166,7 +166,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
@@ -193,7 +193,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         fillColor: const Color(0xFFF8FAFC),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
       ),
-      validator: (v) => (isMandatory && (v == null || v.trim().isEmpty)) ? 'Wajib isi mat!' : null,
+      validator: (v) => (isMandatory && (v == null || v.trim().isEmpty)) ? 'This field is required.' : null,
     );
   }
 
@@ -209,7 +209,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
         child: _isSaving
             ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-            : const Text('SAVE CAREGIVER PROFILE', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+            : const Text('SAVE PROFILE', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
       ),
     );
   }

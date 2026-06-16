@@ -39,17 +39,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final confirmPassword = _confirmPasswordController.text.trim();
 
     if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
-      _showSnackBar('Woi, semua kotak wajib isi babi!', Colors.orange);
+      _showSnackBar('Please fill in all fields.', Colors.orange);
       return;
     }
 
     if (password.length < 6) {
-      _showSnackBar('Password kena sekurang-kurangnya 6 aksara mat.', Colors.redAccent);
+      _showSnackBar('Password must be at least 6 characters long.', Colors.redAccent);
       return;
     }
 
     if (password != confirmPassword) {
-      _showSnackBar('Password tak sama, kau taip pakai mata ke telinga?', Colors.red);
+      _showSnackBar('Passwords do not match.', Colors.red);
       return;
     }
 
@@ -59,7 +59,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // 🚀 HANTAR NAMA SEKALI KE AUTH SERVICE
       final user = await _authService.registerCaregiver(name, email, password);
       if (user != null) {
-        _showSnackBar('Akaun Berjaya! Sila set up PIN keselamatan anda.', Colors.green);
+        _showSnackBar('Registration successful! Please set up your security PIN.', Colors.green);
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -68,7 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
     } catch (e) {
-      _showSnackBar('Gagal daftar: ${e.toString()}', Colors.red);
+      _showSnackBar('Registration failed: ${e.toString()}', Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -78,17 +78,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      print("🚨 J.A.R.V.I.S: Memutuskan sebarang sesi aktif sebelum ini bagi mengelakkan session overlap...");
+      print("🚨 J.A.R.V.I.S: Disconnecting any active sessions to prevent overlap...");
 
       // 🚀 LANGKAH 1: Paksa sistem log keluar sepenuhnya daripada Firebase dan Google
       // untuk memastikan prompt pemilihan akaun Google yang bersih akan keluar.
       await _authService.signOut();
 
-      print("J.A.R.V.I.S: Memulakan litar Google Sign-In yang bersih...");
+      print("J.A.R.V.I.S: Initiating clean Google Sign-In circuit...");
       final user = await _authService.signInWithGoogle();
 
       if (user != null) {
-        _showSnackBar('Pendaftaran Google Berjaya!', Colors.green);
+        _showSnackBar('Google Sign-Up successful!', Colors.green);
         if (mounted) {
           Navigator.pushAndRemoveUntil(
             context,
@@ -98,12 +98,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       } else {
         setState(() => _isLoading = false);
-        _showSnackBar('Proses dibatalkan atau user tak pilih akaun.', Colors.orange);
+        _showSnackBar('Process cancelled or no account selected.', Colors.orange);
       }
     } catch (e) {
       setState(() => _isLoading = false);
       print("🚨 J.A.R.V.I.S ERROR: $e");
-      _showSnackBar('Ralat Kritikal! Check Debug Console mat.', Colors.red);
+      _showSnackBar('A critical error occurred. Please try again.', Colors.red);
     }
   }
 
@@ -149,7 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     const Text('New Caregiver', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
                     const SizedBox(height: 8),
-                    Text('Daftar akaun untuk mula memantau pesakit.', style: TextStyle(color: Colors.blueGrey[400], fontSize: 13)),
+                    Text('Create an account to start monitoring patients.', style: TextStyle(color: Colors.blueGrey[400], fontSize: 13)),
                     const SizedBox(height: 24),
 
                     // 🚀 KOTAK NAMA BARU

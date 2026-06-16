@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_theme.dart';
 import 'login_screen.dart';
-import 'select_patient_screen.dart'; // 🚀 Litar baru untuk pilih pesakit
+import 'select_patient_screen.dart'; // 🚀 Module for patient selection
 
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
@@ -17,25 +17,25 @@ class RoleSelectionScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text("Who are you?", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
+              const Text("Welcome to PictoSpeak", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
               const SizedBox(height: 8),
-              const Text("Sila pilih peranan anda untuk memulakan sesi.", textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
+              const Text("Please select your role to proceed.", textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
               const SizedBox(height: 48),
 
-              // PILIHAN 1: PESAKIT
+              // OPTION 1: PATIENT
               _buildRoleCard(
                 context,
                 title: "I AM A PATIENT",
-                subtitle: "Saya pesakit / Pengguna AAC",
+                subtitle: "Access AAC communication tools",
                 icon: Icons.accessibility_new_rounded,
                 color: AppTheme.primaryBlue,
                 onTap: () {
-                  // 🚀 J.A.R.V.I.S: Check dulu caregiver dah login ke belum dlm device ni
+                  // 🚀 J.A.R.V.I.S: Verify caregiver authentication status
                   if (FirebaseAuth.instance.currentUser != null) {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const SelectPatientScreen()));
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Caregiver kena login dulu sebelum pesakit boleh guna!"), backgroundColor: Colors.orange),
+                      const SnackBar(content: Text("Caregiver authentication is required to access patient mode."), backgroundColor: Colors.orange),
                     );
                   }
                 },
@@ -43,11 +43,11 @@ class RoleSelectionScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // PILIHAN 2: PENJAGA
+              // OPTION 2: CAREGIVER
               _buildRoleCard(
                 context,
                 title: "I AM A CAREGIVER",
-                subtitle: "Saya penjaga / Admin sistem",
+                subtitle: "Manage patient profiles and data",
                 icon: Icons.admin_panel_settings_rounded,
                 color: Colors.blueGrey.shade700,
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreen())),

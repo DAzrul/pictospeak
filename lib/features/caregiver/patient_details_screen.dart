@@ -2,10 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // 🚀 TAMBAH INI UNTUK FORMAT MASA
+import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 
 class PatientDetailsScreen extends StatefulWidget {
@@ -59,12 +59,12 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           _isUploadingPic = false;
         });
 
-        if(mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Update Profile Picture Success"), backgroundColor: Colors.green));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile picture updated successfully."), backgroundColor: Colors.green));
         }
       } catch (e) {
         setState(() => _isUploadingPic = false);
-        if(mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
         }
       }
@@ -89,7 +89,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                   TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
                   TextField(controller: ageCtrl, decoration: const InputDecoration(labelText: 'Age'), keyboardType: TextInputType.number),
                   TextField(controller: conditionCtrl, decoration: const InputDecoration(labelText: 'Condition')),
-                  TextField(controller: pinCtrl, decoration: const InputDecoration(labelText: 'PIN Code (4 Digit)'), maxLength: 4, keyboardType: TextInputType.number),
+                  TextField(controller: pinCtrl, decoration: const InputDecoration(labelText: 'PIN Code (4 Digits)'), maxLength: 4, keyboardType: TextInputType.number),
                 ],
               ),
             ),
@@ -118,8 +118,8 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                   });
 
                   Navigator.pop(context);
-                  if(mounted){
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Update Data Success"), backgroundColor: Colors.blue));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Information updated successfully."), backgroundColor: Colors.blue));
                   }
                 },
                 child: const Text("SAVE"),
@@ -154,7 +154,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         controller: _tabController,
         children: [
           _buildOverviewTab(),
-          _buildInsightsTab(), // 🚀 Tab Analitik Pintar
+          _buildInsightsTab(),
         ],
       ),
     );
@@ -188,16 +188,16 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           ),
         ),
         const SizedBox(height: 30),
-        _buildInfoCard("Condition", _currentData['condition'] ?? 'No data', Icons.medical_services_outlined),
+        _buildInfoCard("Condition", _currentData['condition'] ?? 'N/A', Icons.medical_services_outlined),
         _buildInfoCard("Age", "${_currentData['age']} Years Old", Icons.cake_outlined),
-        _buildInfoCard("Relationship", _currentData['relationship'], Icons.family_restroom),
-        _buildInfoCard("Access PIN", _currentData['pin_code'], Icons.lock_outline),
+        _buildInfoCard("Relationship", _currentData['relationship'] ?? 'N/A', Icons.family_restroom),
+        _buildInfoCard("Access PIN", _currentData['pin_code'] ?? 'N/A', Icons.lock_outline),
         const SizedBox(height: 20),
         ElevatedButton.icon(
           onPressed: _showEditDialog,
           icon: const Icon(Icons.edit_rounded, color: AppTheme.primaryBlue),
           label: const Text("EDIT PATIENT DETAILS", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.withOpacity(0.1), elevation: 0, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.withValues(alpha: 0.1), elevation: 0, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
         )
       ],
     );
@@ -221,14 +221,10 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     );
   }
 
-  // =========================================================
-  // 🧠 J.A.R.V.I.S: TAB INSIGHTS (VERSI SEDUT DATA REAL-TIME)
-  // =========================================================
   Widget _buildInsightsTab() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const Center(child: Text("User not logged in"));
+    if (user == null) return const Center(child: Text("User not authorized."));
 
-    // 🚀 Stream paip terus ke Firebase
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('caregivers')
@@ -236,7 +232,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           .collection('patients')
           .doc(_currentData['patient_id'])
           .collection('communication_logs')
-          .orderBy('timestamp', descending: true) // Susun log terbaharu kat atas
+          .orderBy('timestamp', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
@@ -244,7 +240,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
 
         final docs = snapshot.data?.docs ?? [];
 
-        // --- 1. LITAR KIRA STATISTIK (ENJIN DATA) ---
         int totalSentencesToday = 0;
         int positiveMood = 0;
         int negativeMood = 0;
@@ -264,7 +259,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           if (mood == 'Positive') positiveMood++;
           if (mood == 'Negative') negativeMood++;
 
-          // Kira perkataan paling kerap ditekan
           List<dynamic> items = data['items'] ?? [];
           for (var item in items) {
             String wordId = item.toString();
@@ -272,7 +266,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           }
         }
 
-        // Tentukan dominasi mood
         String overallMood = "Neutral";
         Color moodColor = Colors.grey;
         IconData moodIcon = Icons.sentiment_neutral_rounded;
@@ -283,21 +276,17 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           overallMood = "Distressed"; moodColor = Colors.red; moodIcon = Icons.sentiment_very_dissatisfied_rounded;
         }
 
-        // Cari Top 4 Keperluan Pesakit (Untuk Graf Bar)
         var sortedKeys = keywordCounts.keys.toList()..sort((a, b) => keywordCounts[b]!.compareTo(keywordCounts[a]!));
         List<String> top4Items = sortedKeys.take(4).toList();
         List<int> top4Values = top4Items.map((k) => keywordCounts[k]!).toList();
 
-        // Cari max Y untuk graf (supaya tak cacat kalau data naik sampai 50 kali)
         double maxYGraph = top4Values.isNotEmpty ? top4Values.reduce((a, b) => a > b ? a : b).toDouble() : 10;
-        if (maxYGraph < 10) maxYGraph = 10; // Kekalkan saiz graf standard 10 kalau data sikit
+        if (maxYGraph < 10) maxYGraph = 10;
 
-        // --- 2. LUKIS UI ---
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              // 1. KAD SUMMARY
               Row(
                 children: [
                   _buildSummaryCard(totalSentencesToday.toString(), "Sentences Today", Icons.chat_bubble_outline_rounded, Colors.blue),
@@ -307,7 +296,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               ),
               const SizedBox(height: 16),
 
-              // 2. KAD GRAF BAR (DINAMIK)
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -326,11 +314,11 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                     SizedBox(
                       height: 200,
                       child: top4Items.isEmpty
-                          ? const Center(child: Text("Tiada data cukup untuk graf", style: TextStyle(color: Colors.grey)))
+                          ? const Center(child: Text("Insufficient data for charts.", style: TextStyle(color: Colors.grey)))
                           : BarChart(
                         BarChartData(
                           alignment: BarChartAlignment.spaceAround,
-                          maxY: maxYGraph + 2, // Tambah ruang bernafas sikit kat atas
+                          maxY: maxYGraph + 2,
                           barGroups: List.generate(top4Items.length, (index) {
                             return _makeDynamicBarGroup(index, top4Values[index].toDouble());
                           }),
@@ -342,7 +330,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                                 getTitlesWidget: (value, meta) {
                                   if (value.toInt() >= top4Items.length) return const Text('');
                                   String titleRaw = top4Items[value.toInt()];
-                                  // Capitalize huruf pertama
                                   String titleFormat = "${titleRaw[0].toUpperCase()}${titleRaw.substring(1).toLowerCase()}";
                                   return Text(titleFormat, style: const TextStyle(color: Colors.grey, fontSize: 10));
                                 },
@@ -353,7 +340,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                                 showTitles: true,
                                 reservedSize: 28,
                                 getTitlesWidget: (value, meta) {
-                                  // Tunjuk gandaan ikut skala Y axis (kalau bawah 20 tunjuk semua, kalau tinggi sangat tunjuk gandaan)
                                   if (value % (maxYGraph > 20 ? 5 : 2) == 0) {
                                     return Text(value.toInt().toString(), style: const TextStyle(color: Colors.grey, fontSize: 10));
                                   }
@@ -374,7 +360,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               ),
               const SizedBox(height: 16),
 
-              // 3. KAD COMMUNICATION LOG (SENARAI SEBENAR)
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -394,22 +379,20 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.only(bottom: 20),
-                          child: Text("Tiada log dikesan.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          child: Text("No records detected.", style: TextStyle(color: Colors.grey, fontSize: 12)),
                         ),
                       )
                     else
-                    // 🚀 Litar gelung untuk susun log sejarah pesakit
                       ListView.separated(
                         shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(), // Scroll ikut parent luar
-                        itemCount: docs.length > 5 ? 5 : docs.length, // Tunjuk max 5 log terkini je
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: docs.length > 5 ? 5 : docs.length,
                         separatorBuilder: (context, index) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final data = docs[index].data() as Map<String, dynamic>;
                           final sentence = data['sentence'] ?? '';
                           final moodStr = data['mood'] ?? 'Neutral';
 
-                          // Format Masa (Cth: 12:45 PM)
                           String timeText = "Just now";
                           Timestamp? ts = data['timestamp'] as Timestamp?;
                           if (ts != null) {
@@ -425,7 +408,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Icon penanda masa
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
@@ -442,10 +424,9 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                                     ],
                                   ),
                                 ),
-                                // Tag mood kecik
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(color: tagColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                                  decoration: BoxDecoration(color: tagColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                                   child: Text(moodStr, style: TextStyle(color: tagColor, fontSize: 9, fontWeight: FontWeight.bold)),
                                 ),
                               ],
@@ -486,7 +467,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     );
   }
 
-  // Litar graf untuk lukis bar berdasaarkan data sebenar
   BarChartGroupData _makeDynamicBarGroup(int x, double y) {
     return BarChartGroupData(
       x: x,
