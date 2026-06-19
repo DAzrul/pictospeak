@@ -8,6 +8,7 @@ import '../auth/role_selection_screen.dart';
 import '../auth/splash_screen.dart';
 import '../caregiver/edit_profile_screen.dart';
 import '../auth/services/auth_service.dart';
+import 'SupportTicketScreen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -263,10 +264,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ChangePinScreen()));
                 }),
                 const Divider(height: 1),
-                // 🚀 J.A.R.V.I.S: Ini butang baru untuk Set/Change Password tu!
                 _buildListTile('Set / Change Password', 'Update your login password', Icons.password_rounded, () {
                   _showChangePasswordDialog(context);
                 }),
+                // 👇 LITAR REQUEST SUPPORT BARU KITA 👇
+                const Divider(height: 1),
+                _buildListTile(
+                    'Support & Request',
+                    'Request new pictograms or get help',
+                    Icons.support_agent_rounded,
+                        () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const SupportTicketScreen()));
+                    }
+                ),
               ],
             ),
           ),

@@ -1,7 +1,10 @@
 import 'dart:async'; // 🚀 J.A.R.V.I.S: Import ni wajib untuk StreamSubscription
+import 'dart:io'; // 🚀 J.A.R.V.I.S: Untuk check Android/iOS
+import 'package:flutter/foundation.dart' show kIsWeb; // 🚀 J.A.R.V.I.S: Untuk check Web
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // 🚀 J.A.R.V.I.S: Enjin Notification
 import 'package:pictospeak/features/caregiver/patient_details_screen.dart';
 import '../../core/theme/app_theme.dart';
 import '../auth/patient_pin_screen.dart';
@@ -26,12 +29,55 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
   // 🚨 J.A.R.V.I.S: Enjin Bunyi Siren & Radar
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isSosActive = false;
-  StreamSubscription<QuerySnapshot>? _sosSubscription; // 🚀 Telinga radar kita
+  bool _isSosDialogOpen = false; // 🚀 LITAR BARU: Penjejak Popup Jarak Jauh
+  StreamSubscription<QuerySnapshot>? _sosSubscription;
 
   @override
   void initState() {
     super.initState();
-    _startSosRadar(); // 🚀 Hidupkan radar masa Dashboard dibuka!
+    _startSosRadar();
+    _registerDeviceToken();
+  }
+
+  // =========================================================
+  // 📡 J.A.R.V.I.S: SISTEM PENDAFTARAN RADAR (FCM TOKENS)
+  // =========================================================
+  Future<void> _registerDeviceToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    try {
+      NotificationSettings settings = await messaging.requestPermission(
+        alert: true, badge: true, sound: true,
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        String? token = await messaging.getToken();
+
+        if (token != null) {
+          String devicePlatform = kIsWeb ? 'Web Browser' : (Platform.isAndroid ? 'Android' : 'iOS');
+
+          await FirebaseFirestore.instance
+              .collection('caregivers')
+              .doc(user.uid)
+              .collection('device_tokens')
+              .doc(token)
+              .set({
+            'token': token,
+            'platform': devicePlatform,
+            'last_updated': FieldValue.serverTimestamp(),
+          });
+
+          debugPrint("✅ J.A.R.V.I.S: Radar dipasang! Token $devicePlatform didaftarkan.");
+        }
+      } else {
+        debugPrint("🚨 J.A.R.V.I.S: Penjaga kedekut, tak bagi kebenaran notification.");
+      }
+    } catch (e) {
+      debugPrint("🚨 J.A.R.V.I.S Error: Gagal daftar token -> $e");
+    }
   }
 
   // =========================================================
@@ -48,29 +94,44 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
         .snapshots()
         .listen((snapshot) {
 
-      // Kalau takde SOS langsung, diam je.
-      if (snapshot.docs.isEmpty) return;
+      // 🚀 J.A.R.V.I.S REMOTE KILL SWITCH: Kalau orang lain dah setel, bunuh siren & tutup popup!
+      if (snapshot.docs.isEmpty) {
+        _audioPlayer.setReleaseMode(ReleaseMode.stop);
+        _audioPlayer.stop();
+        _isSosActive = false; // Buka balik mangga
+
+        // Kalau skrin ni tengah buka popup, bunuh popup tu secara paksa!
+        if (_isSosDialogOpen && mounted) {
+          _isSosDialogOpen = false;
+          Navigator.of(context, rootNavigator: true).pop();
+          debugPrint("✅ J.A.R.V.I.S: Popup SOS ditutup dari jarak jauh!");
+        }
+        return;
+      }
 
       // Kalau litar tengah sibuk handle pesakit A, abaikan dulu.
-      // Jangan risau, Firestore akan trigger stream ni balik lepas kita setel pesakit A.
       if (_isSosActive) return;
 
-      // 🚀 J.A.R.V.I.S: Kunci litar & ambil dokumen TERATAS (First in line)
+      // Kunci litar & ambil dokumen TERATAS (First in line)
       _isSosActive = true;
 
       final data = snapshot.docs.first.data() as Map<String, dynamic>;
       final targetPatientId = data['patient_id'];
       String pName = data['patient_name'] ?? 'Pesakit';
 
-      // Hantar ID Pesakit, bukan ID dokumen SOS, supaya kita boleh bunuh SPAM pesakit ni je
       _triggerSosAlarm(pName, targetPatientId);
     });
   }
 
   // =========================================================
-  // 🚨 LITAR PENGGERA & POP-UP (VERSI TARGETED STRIKE)
+  // 🚨 LITAR PENGGERA & POP-UP (VERSI TARGETED STRIKE - ANTI BLACK SCREEN)
   // =========================================================
   void _triggerSosAlarm(String patientName, String targetPatientId) async {
+    if (!mounted) return;
+
+    // 🚀 J.A.R.V.I.S: Kalau popup dah terbentang, jangan bukak popup baru berlapis-lapis!
+    if (_isSosDialogOpen) return;
+
     setState(() {});
 
     try {
@@ -80,12 +141,12 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
       print("🚨 J.A.R.V.I.S: Siren rosak -> $e");
     }
 
-    if (!mounted) return;
+    _isSosDialogOpen = true;
 
     showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) {
+        builder: (BuildContext dialogContext) { // 🚀 GUNA dialogContext DI SINI!
           return AlertDialog(
             backgroundColor: Colors.red.shade600,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -108,16 +169,27 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
+                    // 🚀 LANGKAH 1: TUTUP DIALOG DULU! (Elak Black Screen / Double Pop)
+                    Navigator.pop(dialogContext);
+
+                    // 🚀 LANGKAH 2: MATIKAN SIREN
+                    await _audioPlayer.setReleaseMode(ReleaseMode.stop);
                     await _audioPlayer.stop();
 
+                    // 🚀 LANGKAH 3: RESET LITAR RADAR
+                    _isSosActive = false;
+                    _isSosDialogOpen = false;
+                    if (mounted) setState(() {});
+
+                    // 🚀 LANGKAH 4: BARU UPDATE DATABASE!
+                    // (Sebab kita dah tutup dialog awal-awal, bila stream trigger Remote Kill Switch,
+                    // dia takkan jumpa dialog untuk di-pop lagi!)
                     final user = FirebaseAuth.instance.currentUser;
                     if (user != null) {
-                      // 🚀 J.A.R.V.I.S TARGETED STRIKE:
-                      // Cari SOS untuk PESAKIT INI SAHAJA. Biarkan pesakit lain punya SOS hidup.
                       var activeSosDocs = await FirebaseFirestore.instance
                           .collection('sos_alerts')
                           .where('caregiver_id', isEqualTo: user.uid)
-                          .where('patient_id', isEqualTo: targetPatientId) // 🔥 INI PENYELAMAT NYA!
+                          .where('patient_id', isEqualTo: targetPatientId)
                           .where('status', isEqualTo: 'ACTIVE')
                           .get();
 
@@ -126,16 +198,6 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                         batch.update(doc.reference, {'status': 'RESOLVED'});
                       }
                       await batch.commit();
-                    }
-
-                    // 🚀 Buka balik mangga litar.
-                    // Sebaik sahaja database update, stream akan berjalan balik.
-                    // Kalau ada Patient B tengah tunggu, pop-up baru akan terus keluar!
-                    _isSosActive = false;
-
-                    if (context.mounted) {
-                      setState(() {});
-                      Navigator.pop(context);
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -150,12 +212,16 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
             ],
           );
         }
-    );
+    ).then((_) {
+      // 🚀 J.A.R.V.I.S: Pastikan mangga litar direlease kalau popup hilang
+      _isSosDialogOpen = false;
+      _isSosActive = false;
+    });
   }
 
   @override
   void dispose() {
-    _sosSubscription?.cancel(); // 🚀 Tutup telinga radar bila app mati
+    _sosSubscription?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }

@@ -5,10 +5,8 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 exports.tembaksirensos = onDocumentCreated("sos_alerts/{alertId}", async (event) => {
-    // Dalam v2, data duduk dalam event.data
     const snap = event.data;
 
-    // Kalau dokumen tu kosong (mustahil, tapi langkah berjaga-jaga)
     if (!snap) {
         console.log("🚨 Ralat: Tiada snapshot data dijumpai.");
         return null;
@@ -28,40 +26,43 @@ exports.tembaksirensos = onDocumentCreated("sos_alerts/{alertId}", async (event)
     console.log(`[J.A.R.V.I.S] Radar kesan SOS baru dari ${patientName}. Target Caregiver: ${caregiverId}`);
 
     try {
-        // 1. Geledah pangkalan data untuk cari token fon Caregiver
-        const caregiverDoc = await admin.firestore().collection('caregivers').doc(caregiverId).get();
+        // 🚀 LITAR BARU: Geledah sub-collection 'device_tokens' (Ngam dengan Flutter!)
+        const tokensSnapshot = await admin.firestore()
+            .collection('caregivers')
+            .doc(caregiverId)
+            .collection('device_tokens')
+            .get();
 
-        if (!caregiverDoc.exists) {
-            console.log('🚨 Babi, profil Caregiver ni tak wujud dalam sistem!');
+        if (tokensSnapshot.empty) {
+            console.log(`🚨 Caregiver (ID: ${caregiverId}) takde token FCM dalam laci!`);
             return null;
         }
 
-        const fcmToken = caregiverDoc.data().fcm_token;
-
-        if (!fcmToken) {
-            console.log(`🚨 Caregiver (ID: ${caregiverId}) takde token FCM. Mungkin dia tak pernah login!`);
-            return null;
-        }
+        // Kumpul semua token yang ada
+        const tokens = [];
+        tokensSnapshot.forEach((doc) => {
+            tokens.push(doc.id);
+        });
 
         // 2. Isi peluru berpandu (Payload Push Notification)
         const mesejKecemasan = {
-            token: fcmToken,
             notification: {
                 title: '🚨 KECEMASAN SOS!',
-                body: `Pesakit ${patientName.toUpperCase()} sedang nazak perlukan bantuan SEGERA!`
+                body: `Pesakit ${patientName.toUpperCase()} sedang perlukan bantuan SEGERA!`
             },
             android: {
                 priority: 'high',
                 notification: {
-                    sound: 'default', // Boleh tukar bunyi custom nanti
-                    channelId: 'sos_channel' // Wajib untuk tembus mode DND
+                    sound: 'default', // Bunyi biasa dulu, nanti kita buat bunyi siren
+                    channelId: 'sos_channel'
                 }
-            }
+            },
+            tokens: tokens // 🚀 Tembak peluru berpandu secara serentak ke semua token!
         };
 
-        // 3. Tembak terus ke kepala Caregiver!
-        const response = await admin.messaging().send(mesejKecemasan);
-        console.log('✅ BOOM! Notifikasi selamat hinggap kat fon Caregiver! Message ID:', response);
+        // 3. Lepaskan tembakan!
+        const response = await admin.messaging().sendEachForMulticast(mesejKecemasan);
+        console.log('✅ BOOM! Notifikasi selamat hinggap! Berjaya:', response.successCount);
 
         return null;
 

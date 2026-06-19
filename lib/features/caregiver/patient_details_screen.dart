@@ -21,15 +21,100 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
   late TabController _tabController;
   late Map<String, dynamic> _currentData;
 
+  String _selectedAnalyticMode = 'Daily';
   bool _isUploadingPic = false;
+  bool _isGeneratingReport = false; // Loading state for report
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _currentData = Map.from(widget.patientData);
+
+    // 🚀 LITAR NINJA J.A.R.V.I.S BERMULA DI SINI
+    // Dia akan jalan senyap-senyap kat belakang tabir bila skrin dibuka.
+    _autoCheckAndSaveWeeklyReport();
   }
 
+  // 🚀 Protocol: Auto-Generate & Save Weekly Report
+  Future<void> _autoCheckAndSaveWeeklyReport() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final now = DateTime.now();
+    // Cari tarikh Isnin untuk minggu ini (Start of the week)
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final startOfWeekDate = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+
+    try {
+      // 1. SEMAK DATABASE: Ada tak report untuk minggu ni?
+      final existingReports = await FirebaseFirestore.instance
+          .collection('caregivers').doc(user.uid)
+          .collection('patients').doc(_currentData['patient_id'])
+          .collection('weekly_reports')
+          .where('week_start', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfWeekDate))
+          .get();
+
+      // Kalau report MINGGU INI dah ada, litar dimatikan. Tak payah spam database.
+      if (existingReports.docs.isNotEmpty) {
+        debugPrint("🚀 J.A.R.V.I.S: Report minggu ni dah wujud. Skip Auto-Save.");
+        return;
+      }
+
+      // 2. Kalau takde, kita sedut data 7 hari lepas secara senyap
+      debugPrint("🚀 J.A.R.V.I.S: Report minggu ni belum ada! Memulakan Auto-Save...");
+      final lastWeek = now.subtract(const Duration(days: 7));
+
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('caregivers').doc(user.uid)
+          .collection('patients').doc(_currentData['patient_id'])
+          .collection('communication_logs')
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(lastWeek))
+          .get();
+
+      int totalSentences = querySnapshot.docs.length;
+
+      // Kalau seminggu ni pesakit bisu/tak guna app langsung, litar batal. Tak payah save report kosong.
+      if (totalSentences == 0) {
+        debugPrint("🚀 J.A.R.V.I.S: Tiada data komunikasi. Auto-Save dibatalkan.");
+        return;
+      }
+
+      int positiveCount = 0;
+      int negativeCount = 0;
+
+      for (var doc in querySnapshot.docs) {
+        String mood = doc.data()['mood'] ?? 'Neutral';
+        if (mood == 'Positive') positiveCount++;
+        if (mood == 'Negative') negativeCount++;
+      }
+
+      String overallMood = (positiveCount == 0 && negativeCount == 0) ? "Neutral" : (positiveCount >= negativeCount ? "Positive" : "Distressed");
+
+      // 3. Tulis (SAVE) secara automatik ke Firebase!
+      await FirebaseFirestore.instance
+          .collection('caregivers').doc(user.uid)
+          .collection('patients').doc(_currentData['patient_id'])
+          .collection('weekly_reports')
+          .add({
+        'week_start': Timestamp.fromDate(startOfWeekDate),
+        'week_end': Timestamp.now(),
+        'total_sentences': totalSentences,
+        'positive_mood_count': positiveCount,
+        'negative_mood_count': negativeCount,
+        'overall_mood': overallMood,
+        'summary': 'System Auto-Generated Weekly Report',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint("✅ J.A.R.V.I.S: Auto-Save Berjaya Disiapkan!");
+
+    } catch (e) {
+      debugPrint("🚨 J.A.R.V.I.S Auto-Save Error: $e");
+    }
+  }
+
+  // 🚀 Protocol: Upload Profile Picture
   Future<void> _uploadProfilePic() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
@@ -71,6 +156,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     }
   }
 
+  // 🚀 Protocol: Edit Patient Details
   void _showEditDialog() {
     final nameCtrl = TextEditingController(text: _currentData['name']);
     final ageCtrl = TextEditingController(text: _currentData['age'].toString());
@@ -128,6 +214,63 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           );
         }
     );
+  }
+
+  // 🚀 Protocol: Generate & Save Weekly Report (Data Persistence)
+  Future<void> _generateAndSaveWeeklyReport() async {
+    setState(() => _isGeneratingReport = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final now = DateTime.now();
+      final lastWeek = now.subtract(const Duration(days: 7));
+
+      // Fetch raw logs for the past 7 days
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('caregivers').doc(user!.uid)
+          .collection('patients').doc(_currentData['patient_id'])
+          .collection('communication_logs')
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(lastWeek))
+          .get();
+
+      int totalSentences = querySnapshot.docs.length;
+      int positiveCount = 0;
+      int negativeCount = 0;
+
+      for (var doc in querySnapshot.docs) {
+        String mood = doc.data()['mood'] ?? 'Neutral';
+        if (mood == 'Positive') positiveCount++;
+        if (mood == 'Negative') negativeCount++;
+      }
+
+      String overallMood = (positiveCount == 0 && negativeCount == 0) ? "Neutral" : (positiveCount >= negativeCount ? "Positive" : "Distressed");
+
+      // Save to weekly_reports sub-collection
+      await FirebaseFirestore.instance
+          .collection('caregivers').doc(user.uid)
+          .collection('patients').doc(_currentData['patient_id'])
+          .collection('weekly_reports')
+          .add({
+        'week_start': Timestamp.fromDate(lastWeek),
+        'week_end': Timestamp.now(),
+        'total_sentences': totalSentences,
+        'positive_mood_count': positiveCount,
+        'negative_mood_count': negativeCount,
+        'overall_mood': overallMood,
+        'summary': 'Weekly report manually generated by Caregiver',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Weekly report saved to database successfully!"), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error saving report: $e"), backgroundColor: Colors.red));
+      }
+    } finally {
+      setState(() => _isGeneratingReport = false);
+    }
   }
 
   @override
@@ -235,61 +378,84 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           .orderBy('timestamp', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+        if (snapshot.hasError) return Center(child: Text('Data error: ${snapshot.error}'));
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
 
         final docs = snapshot.data?.docs ?? [];
 
-        int totalSentencesToday = 0;
+        int totalSentences = 0;
         int positiveMood = 0;
         int negativeMood = 0;
         Map<String, int> keywordCounts = {};
 
-        DateTime today = DateTime.now();
+        DateTime now = DateTime.now();
+        DateTime startOfToday = DateTime(now.year, now.month, now.day);
+        DateTime startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
 
         for (var doc in docs) {
           final data = doc.data() as Map<String, dynamic>;
           final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
 
-          if (timestamp != null && timestamp.day == today.day && timestamp.month == today.month && timestamp.year == today.year) {
-            totalSentencesToday++;
-          }
+          if (timestamp != null) {
+            bool isWithinRange = false;
 
-          String mood = data['mood'] ?? 'Neutral';
-          if (mood == 'Positive') positiveMood++;
-          if (mood == 'Negative') negativeMood++;
+            // Analytic Mode Filtering
+            if (_selectedAnalyticMode == 'Daily') {
+              if (timestamp.isAfter(startOfToday)) isWithinRange = true;
+            } else {
+              if (timestamp.isAfter(startOfWeek) || timestamp.isAtSameMomentAs(startOfWeek)) isWithinRange = true;
+            }
 
-          List<dynamic> items = data['items'] ?? [];
-          for (var item in items) {
-            String wordId = item.toString();
-            keywordCounts[wordId] = (keywordCounts[wordId] ?? 0) + 1;
+            if (isWithinRange) {
+              totalSentences++;
+              String mood = data['mood'] ?? 'Neutral';
+              if (mood == 'Positive') positiveMood++;
+              if (mood == 'Negative') negativeMood++;
+
+              List<dynamic> items = data['items'] ?? [];
+              for (var item in items) {
+                String wordStr = item.toString().trim();
+
+                // Exclude raw Firebase Document IDs (20 chars, alphanumeric)
+                if (wordStr.isEmpty || (wordStr.length == 20 && !wordStr.contains(' ') && RegExp(r'^[a-zA-Z0-9]+$').hasMatch(wordStr))) continue;
+
+                wordStr = "${wordStr[0].toUpperCase()}${wordStr.substring(1).toLowerCase()}";
+                keywordCounts[wordStr] = (keywordCounts[wordStr] ?? 0) + 1;
+              }
+            }
           }
         }
 
-        String overallMood = "Neutral";
-        Color moodColor = Colors.grey;
-        IconData moodIcon = Icons.sentiment_neutral_rounded;
-
-        if (positiveMood > negativeMood) {
-          overallMood = "Positive"; moodColor = Colors.green; moodIcon = Icons.sentiment_very_satisfied_rounded;
-        } else if (negativeMood > positiveMood) {
-          overallMood = "Distressed"; moodColor = Colors.red; moodIcon = Icons.sentiment_very_dissatisfied_rounded;
-        }
+        String overallMood = (positiveMood == 0 && negativeMood == 0) ? "Neutral" : (positiveMood >= negativeMood ? "Positive" : "Distressed");
+        Color moodColor = overallMood == "Positive" ? Colors.green : (overallMood == "Distressed" ? Colors.red : Colors.grey);
+        IconData moodIcon = overallMood == "Positive" ? Icons.sentiment_very_satisfied_rounded : (overallMood == "Distressed" ? Icons.sentiment_very_dissatisfied_rounded : Icons.sentiment_neutral_rounded);
 
         var sortedKeys = keywordCounts.keys.toList()..sort((a, b) => keywordCounts[b]!.compareTo(keywordCounts[a]!));
         List<String> top4Items = sortedKeys.take(4).toList();
         List<int> top4Values = top4Items.map((k) => keywordCounts[k]!).toList();
-
         double maxYGraph = top4Values.isNotEmpty ? top4Values.reduce((a, b) => a > b ? a : b).toDouble() : 10;
-        if (maxYGraph < 10) maxYGraph = 10;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
+              // DROPDOWN FILTER
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedAnalyticMode,
+                    items: ['Daily', 'Weekly'].map((String mode) => DropdownMenuItem(value: mode, child: Text(mode))).toList(),
+                    onChanged: (val) => setState(() => _selectedAnalyticMode = val!),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               Row(
                 children: [
-                  _buildSummaryCard(totalSentencesToday.toString(), "Sentences Today", Icons.chat_bubble_outline_rounded, Colors.blue),
+                  _buildSummaryCard(totalSentences.toString(), "Sentences ($_selectedAnalyticMode)", Icons.chat_bubble_outline_rounded, Colors.blue),
                   const SizedBox(width: 16),
                   _buildSummaryCard(overallMood, "Mood Trend", moodIcon, moodColor),
                 ],

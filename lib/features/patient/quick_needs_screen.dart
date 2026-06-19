@@ -34,97 +34,68 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
 
   Map<String, int> _globalFrequencyMap = {};
 
-  // =========================================================
-  // 🧠 J.A.R.V.I.S: Otak AI Statik (Versi Penuh / Full Mapping)
-  // =========================================================
   final Map<String, List<String>> _predictionMap = {
-    // 1. ASAS & KECEMASAN
     'yes': ['happy', 'done'],
     'no': ['sad', 'angry', 'pain'],
     'pain': ['medicine', 'rest', 'dizzy', 'hospital', 'help'],
     'toilet': ['water', 'diaper', 'shower', 'done'],
-    'help': ['breathe', 'pain', 'hospital', 'family', 'dizzy'], // SOS dah tukar jadi Help
-
-    // 2. KESIHATAN & FIZIKAL
+    'help': ['breathe', 'pain', 'hospital', 'family', 'dizzy'],
     'medicine': ['water', 'rest', 'done'],
     'dizzy': ['lie', 'rest', 'medicine', 'water'],
     'breathe': ['rest', 'help', 'hospital', 'fan'],
     'itchy': ['shower', 'medicine', 'clothes'],
     'tired': ['rest', 'lie', 'water', 'quiet'],
-
-    // 3. POSISI & KESELESAAN
     'sit': ['water', 'bored', 'phone', 'family'],
     'lie': ['rest', 'tired', 'cold', 'hot', 'quiet'],
     'turn': ['pain', 'rest', 'lie'],
     'cold': ['clothes', 'window', 'tea', 'turn'],
     'hot': ['fan', 'water', 'shower', 'window', 'clothes'],
-
-    // 4. MAKAN & MINUM
     'water': ['done', 'happy', 'toilet'],
     'hungry': ['porridge', 'milk', 'water', 'done'],
     'porridge': ['water', 'done', 'happy'],
     'coffee': ['water', 'done'],
     'tea': ['water', 'done'],
     'milk': ['water', 'done', 'rest'],
-
-    // 5. EMOSI & SOSIAL
     'happy': ['family', 'phone', 'done'],
     'sad': ['family', 'rest', 'pray', 'quiet'],
     'angry': ['quiet', 'rest', 'breathe', 'noisy'],
     'family': ['happy', 'phone', 'pray'],
     'quiet': ['rest', 'lie', 'breathe'],
     'rest': ['quiet', 'lie', 'fan', 'light'],
-
-    // 6. KEBERSIHAN DIRI
     'diaper': ['shower', 'clothes', 'done'],
     'shower': ['clothes', 'cold', 'done'],
     'clothes': ['cold', 'hot', 'done'],
     'brush': ['water', 'done'],
-
-    // 7. KAWALAN BILIK
     'light': ['rest', 'lie', 'bored'],
     'fan': ['hot', 'cold', 'rest', 'window'],
     'noisy': ['quiet', 'angry', 'sad', 'window'],
     'window': ['hot', 'cold', 'fan', 'light'],
-
-    // 8. LIFESTYLE & REHAB
     'physio': ['tired', 'pain', 'water', 'rest'],
     'pray': ['quiet', 'clothes', 'water'],
     'bored': ['phone', 'family', 'sit'],
     'phone': ['family', 'happy', 'bored'],
-
-    // 9. NOMBOR
     'num0': ['done'], 'num1': ['done'], 'num2': ['done'],
     'num3': ['done'], 'num4': ['done'], 'num5': ['done'],
     'num6': ['done'], 'num7': ['done'], 'num8': ['done'], 'num9': ['done'],
-
-    // TAMBAHAN
     'done': ['happy', 'rest'],
     'hospital': ['help', 'family', 'pain'],
   };
 
-  // 🚀 J.A.R.V.I.S: KOTAK MEMORI OTAK AI PERIBADI
   Map<String, Map<String, int>> _personalizedPredictions = {};
 
-  // =========================================================
-  // 🎯 LITAR PENAPIS AI (Otak Peribadi > Otak Statik)
-  // =========================================================
   List<Map<String, dynamic>> get _currentRecommendations {
     if (_selectedItems.isEmpty) return [];
 
     String lastItemId = _selectedItems.last['id'];
     List<String> predictedIds = [];
 
-    // 🚀 LANGKAH 1: Tanya Otak Peribadi dulu
     if (_personalizedPredictions.containsKey(lastItemId)) {
       var nextWordsMap = _personalizedPredictions[lastItemId]!;
       var sortedWords = nextWordsMap.keys.toList()
         ..sort((a, b) => nextWordsMap[b]!.compareTo(nextWordsMap[a]!));
-
       predictedIds = sortedWords.take(4).toList();
     }
 
-    // 🚀 LANGKAH 2: Kalau otak peribadi kosong, pakai Otak Statik
     if (predictedIds.isEmpty) {
       predictedIds = _predictionMap[lastItemId] ?? [];
     }
@@ -157,9 +128,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     await _ttsService.setPitch(_storedPitch);
   }
 
-  // =========================================================
-  // 🧠 J.A.R.V.I.S MACHINE LEARNING: Bina Otak Peribadi + Kira Freq Grid
-  // =========================================================
   Future<void> _buildPersonalizedBrain() async {
     final user = FirebaseAuth.instance.currentUser;
     final prefs = await SharedPreferences.getInstance();
@@ -168,8 +136,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     if (user == null || patientId == null) return;
 
     try {
-      print("🚀 J.A.R.V.I.S: Menyelam masuk ke memori pesakit untuk susun semula kedudukan Grid...");
-
       final querySnapshot = await FirebaseFirestore.instance
           .collection('caregivers')
           .doc(user.uid)
@@ -177,27 +143,22 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           .doc(patientId)
           .collection('communication_logs')
           .orderBy('timestamp', descending: true)
-          .limit(100) // Ambil 100 log terakhir untuk analisis trend semasa
+          .limit(100)
           .get();
 
       Map<String, Map<String, int>> tempBrain = {};
-      Map<String, int> tempFrequency = {}; // Tempat simpan kiraan kekerapan baru
+      Map<String, int> tempFrequency = {};
 
       for (var doc in querySnapshot.docs) {
         List<dynamic> items = doc.data()['items'] ?? [];
 
         for (int i = 0; i < items.length; i++) {
           String currentWord = items[i].toString();
-
-          // 📊 Kira kekerapan global untuk susunan grid utama
           tempFrequency[currentWord] = (tempFrequency[currentWord] ?? 0) + 1;
 
-          // Logik Next-Word Prediction asal kau
           if (i < items.length - 1) {
             String nextWord = items[i + 1].toString();
-            if (!tempBrain.containsKey(currentWord)) {
-              tempBrain[currentWord] = {};
-            }
+            if (!tempBrain.containsKey(currentWord)) tempBrain[currentWord] = {};
             tempBrain[currentWord]![nextWord] = (tempBrain[currentWord]![nextWord] ?? 0) + 1;
           }
         }
@@ -206,39 +167,27 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
       if (mounted) {
         setState(() {
           _personalizedPredictions = tempBrain;
-          _globalFrequencyMap = tempFrequency; // Simpan data kekerapan ke dalam state
+          _globalFrequencyMap = tempFrequency;
         });
       }
-      print("✅ J.A.R.V.I.S: Susunan frekuensi grid berjaya dikira! -> $_globalFrequencyMap");
     } catch (e) {
       print("🚨 J.A.R.V.I.S ERROR: Gagal bina susunan frekuensi -> $e");
     }
   }
 
-  // =========================================================
-  // 💾 J.A.R.V.I.S DATA LOGGER (VERSI AUTO-UPDATE LAST ACTIVE & GLOBAL ANALYTICS)
-  // =========================================================
   Future<void> _logCommunicationToFirebase(String fullSentence, List<String> itemIds) async {
     final user = FirebaseAuth.instance.currentUser;
     final prefs = await SharedPreferences.getInstance();
     String? patientId = prefs.getString('patient_id');
 
-    if (user == null) {
-      print("🚨 J.A.R.V.I.S: GAGAL! Caregiver belum login Firebase.");
-      return;
-    }
-    if (patientId == null || patientId.isEmpty) {
-      print("🚨 J.A.R.V.I.S: GAGAL! ID Pesakit KOSONG dalam memori fon!");
-      print("💡 J.A.R.V.I.S: Menggunakan 'Override' sementara untuk ujian...");
-      patientId = "nkRDAkCjRWVaC7biOZu7";
-    }
+    if (user == null) return;
+    if (patientId == null || patientId.isEmpty) patientId = "nkRDAkCjRWVaC7biOZu7"; // Override fallback
 
     String mood = "Neutral";
     if (itemIds.any((id) => ['happy', 'yes', 'pray'].contains(id))) mood = "Positive";
     if (itemIds.any((id) => ['sad', 'angry', 'pain', 'dizzy', 'noisy'].contains(id))) mood = "Negative";
 
     try {
-      // 1. Simpan log ayat (Untuk rekod peribadi pesakit/caregiver)
       await FirebaseFirestore.instance
           .collection('caregivers')
           .doc(user.uid)
@@ -252,33 +201,23 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // 2. Update Last Active
       await FirebaseFirestore.instance
           .collection('caregivers')
           .doc(user.uid)
           .collection('patients')
           .doc(patientId)
-          .update({
-        'last_active': FieldValue.serverTimestamp(),
-      });
+          .update({'last_active': FieldValue.serverTimestamp()});
 
-      // =========================================================
-      // 🔥 3. LITAR SUPERADMIN: HANTAR DATA KE GLOBAL ANALYTICS
-      // =========================================================
-      // Loop setiap pictogram yang ditekan dan tambah +1 kat table pusat
       for (String id in itemIds) {
         await FirebaseFirestore.instance
             .collection('global_analytics')
             .doc(id)
             .set({
           'pic_id': id,
-          'total_usage': FieldValue.increment(1), // Auto tambah 1!
+          'total_usage': FieldValue.increment(1),
           'last_triggered': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true)); // merge: true supaya tak padam data lama
+        }, SetOptions(merge: true));
       }
-
-      print("✅ J.A.R.V.I.S: Data berjaya ditembak ke pangkalan peribadi & SuperAdmin!");
-
     } catch (e) {
       print("🚨 J.A.R.V.I.S ERROR: Tempatan terbakar masa nak save -> $e");
     }
@@ -298,90 +237,75 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   }
 
   void _initStaticDatabase() {
-    _staticData = [
-      // 1. MAIN MENU (LUARAN)
-      {'id': 'yes', 'folder': null, 'en': 'YES', 'ms': 'Ya', 'image': 'assets/Pictogram/yes.png', 'color': Colors.green.shade600, 'isFolder': false},
-      {'id': 'no', 'folder': null, 'en': 'NO', 'ms': 'Tidak', 'image': 'assets/Pictogram/no.png', 'color': Colors.red.shade600, 'isFolder': false},
-      {'id': 'pain', 'folder': null, 'en': 'Pain', 'ms': 'Sakit', 'image': 'assets/Pictogram/pain.png', 'color': const Color(0xFFF43F5E), 'isFolder': false},
-      {'id': 'toilet', 'folder': null, 'en': 'Toilet', 'ms': 'Tandas', 'image': 'assets/Pictogram/toilet.png', 'color': Colors.orange, 'isFolder': false},
+    // 🚀 LITAR BARU: Tambah 'source': 'static' untuk semua data asal
+    List<Map<String, dynamic>> rawStatic = [
+      {'id': 'yes', 'folder': null, 'en': 'YES', 'ms': 'Ya', 'image': 'assets/Pictogram/yes.png', 'isFolder': false},
+      {'id': 'no', 'folder': null, 'en': 'NO', 'ms': 'Tidak', 'image': 'assets/Pictogram/no.png', 'isFolder': false},
+      {'id': 'pain', 'folder': null, 'en': 'Pain', 'ms': 'Sakit', 'image': 'assets/Pictogram/pain.png', 'isFolder': false},
+      {'id': 'toilet', 'folder': null, 'en': 'Toilet', 'ms': 'Tandas', 'image': 'assets/Pictogram/toilet.png', 'isFolder': false},
+      {'id': 'help', 'folder': null, 'en': 'Help', 'ms': 'Tolong', 'image': 'assets/Pictogram/SOS.png', 'isFolder': false},
 
-      // 🚀 J.A.R.V.I.S: SOS DAH TUKAR JADI HELP BIASA
-      {'id': 'help', 'folder': null, 'en': 'Help', 'ms': 'Tolong', 'image': 'assets/Pictogram/SOS.png', 'color': Colors.amber.shade700, 'isFolder': false},
+      {'id': 'health', 'folder': null, 'en': 'Health', 'ms': 'Kesihatan', 'image': 'assets/Pictogram/Health/medicine.png', 'isFolder': true},
+      {'id': 'body', 'folder': null, 'en': 'Body & Comfort', 'ms': 'Selesa', 'image': 'assets/Pictogram/Body and Comfort/sit.png', 'isFolder': true},
+      {'id': 'food_drinks', 'folder': null, 'en': 'Food & Drinks', 'ms': 'Makan Minum', 'image': 'assets/Pictogram/food_drinks/hungry.png', 'isFolder': true},
+      {'id': 'feelings', 'folder': null, 'en': 'Feelings', 'ms': 'Emosi', 'image': 'assets/Pictogram/Feelings/happy.png', 'isFolder': true},
+      {'id': 'hygiene', 'folder': null, 'en': 'Hygiene', 'ms': 'Kebersihan', 'image': 'assets/Pictogram/Hygiene/shower.png', 'isFolder': true},
+      {'id': 'environment', 'folder': null, 'en': 'Environment', 'ms': 'Sekeliling', 'image': 'assets/Pictogram/Environment/light.png', 'isFolder': true},
+      {'id': 'rehab', 'folder': null, 'en': 'Lifestyle', 'ms': 'Gaya Hidup', 'image': 'assets/Pictogram/Lifestyle and Rehab/physiotherapy.png', 'isFolder': true},
+      {'id': 'number', 'folder': null, 'en': 'Numbers', 'ms': 'Nombor', 'image': 'assets/Pictogram/Number/one.png', 'isFolder': true},
 
-      // FOLDER UTAMA DI MAIN MENU
-      {'id': 'health', 'folder': null, 'en': 'Health', 'ms': 'Kesihatan', 'image': 'assets/Pictogram/Health/medicine.png', 'color': Colors.purple.shade400, 'isFolder': true},
-      {'id': 'body', 'folder': null, 'en': 'Body & Comfort', 'ms': 'Selesa', 'image': 'assets/Pictogram/Body and Comfort/sit.png', 'color': Colors.teal.shade400, 'isFolder': true},
-      {'id': 'food_drinks', 'folder': null, 'en': 'Food & Drinks', 'ms': 'Makan Minum', 'image': 'assets/Pictogram/food_drinks/hungry.png', 'color': Colors.blue.shade400, 'isFolder': true},
-      {'id': 'feelings', 'folder': null, 'en': 'Feelings', 'ms': 'Emosi', 'image': 'assets/Pictogram/Feelings/happy.png', 'color': Colors.pink.shade300, 'isFolder': true},
-      {'id': 'hygiene', 'folder': null, 'en': 'Hygiene', 'ms': 'Kebersihan', 'image': 'assets/Pictogram/Hygiene/shower.png', 'color': Colors.cyan.shade400, 'isFolder': true},
-      {'id': 'environment', 'folder': null, 'en': 'Environment', 'ms': 'Sekeliling', 'image': 'assets/Pictogram/Environment/light.png', 'color': Colors.indigo.shade400, 'isFolder': true},
-      {'id': 'rehab', 'folder': null, 'en': 'Lifestyle', 'ms': 'Gaya Hidup', 'image': 'assets/Pictogram/Lifestyle and Rehab/physiotherapy.png', 'color': Colors.lime.shade600, 'isFolder': true},
-      {'id': 'number', 'folder': null, 'en': 'Numbers', 'ms': 'Nombor', 'image': 'assets/Pictogram/Number/one.png', 'color': Colors.brown.shade400, 'isFolder': true},
-
-      // 2. KESIHATAN & FIZIKAL
-      {'id': 'medicine', 'folder': 'health', 'en': 'Medicine', 'ms': 'Ubat', 'image': 'assets/Pictogram/Health/medicine.png', 'color': Colors.purple.shade400, 'isFolder': false},
-      {'id': 'dizzy', 'folder': 'health', 'en': 'Dizzy', 'ms': 'Pening', 'image': 'assets/Pictogram/Health/feel dizzy.png', 'color': Colors.purple.shade400, 'isFolder': false},
-      {'id': 'breathe', 'folder': 'health', 'en': 'Breathe', 'ms': 'Susah Nafas', 'image': 'assets/Pictogram/Health/breathe.png', 'color': Colors.purple.shade400, 'isFolder': false},
-      {'id': 'itchy', 'folder': 'health', 'en': 'Itchy', 'ms': 'Gatal', 'image': 'assets/Pictogram/Health/itch.png', 'color': Colors.purple.shade400, 'isFolder': false},
-      {'id': 'tired', 'folder': 'health', 'en': 'Tired', 'ms': 'Penat', 'image': 'assets/Pictogram/Health/tired.png', 'color': Colors.purple.shade400, 'isFolder': false},
-
-      // 3. POSISI & KESELESAAN
-      {'id': 'sit', 'folder': 'body', 'en': 'Sit Up', 'ms': 'Duduk', 'image': 'assets/Pictogram/Body and Comfort/sit.png', 'color': Colors.teal.shade400, 'isFolder': false},
-      {'id': 'lie', 'folder': 'body', 'en': 'Lie Down', 'ms': 'Baring', 'image': 'assets/Pictogram/Body and Comfort/lie down.png', 'color': Colors.teal.shade400, 'isFolder': false},
-      {'id': 'turn', 'folder': 'body', 'en': 'Turn Me', 'ms': 'Pusing Badan', 'image': 'assets/Pictogram/Body and Comfort/turn.png', 'color': Colors.teal.shade400, 'isFolder': false},
-      {'id': 'cold', 'folder': 'body', 'en': 'Cold', 'ms': 'Sejuk', 'image': 'assets/Pictogram/Body and Comfort/cold.png', 'color': Colors.teal.shade400, 'isFolder': false},
-      {'id': 'hot', 'folder': 'body', 'en': 'Hot', 'ms': 'Panas', 'image': 'assets/Pictogram/Body and Comfort/be hot.png', 'color': Colors.teal.shade400, 'isFolder': false},
-
-      // 4. MAKAN & MINUM
-      {'id': 'water', 'folder': 'food_drinks', 'en': 'Water', 'ms': 'Air Kosong', 'image': 'assets/Pictogram/food_drinks/water.png', 'color': Colors.blue.shade400, 'isFolder': false},
-      {'id': 'hungry', 'folder': 'food_drinks', 'en': 'Hungry', 'ms': 'Lapar', 'image': 'assets/Pictogram/food_drinks/hungry.png', 'color': Colors.blue.shade400, 'isFolder': false},
-      {'id': 'porridge', 'folder': 'food_drinks', 'en': 'Porridge', 'ms': 'Bubur', 'image': 'assets/Pictogram/food_drinks/bowl.png', 'color': Colors.blue.shade400, 'isFolder': false},
-      {'id': 'coffee', 'folder': 'food_drinks', 'en': 'Coffee', 'ms': 'Kopi', 'image': 'assets/Pictogram/food_drinks/coffee.png', 'color': Colors.blue.shade400, 'isFolder': false},
-      {'id': 'tea', 'folder': 'food_drinks', 'en': 'Tea', 'ms': 'Teh', 'image': 'assets/Pictogram/food_drinks/tea.png', 'color': Colors.blue.shade400, 'isFolder': false},
-      {'id': 'milk', 'folder': 'food_drinks', 'en': 'Milk', 'ms': 'Susu', 'image': 'assets/Pictogram/food_drinks/milk.png', 'color': Colors.blue.shade400, 'isFolder': false},
-
-      // 5. EMOSI & SOSIAL
-      {'id': 'happy', 'folder': 'feelings', 'en': 'Happy', 'ms': 'Gembira', 'image': 'assets/Pictogram/Feelings/happy.png', 'color': Colors.pink.shade300, 'isFolder': false},
-      {'id': 'sad', 'folder': 'feelings', 'en': 'Sad', 'ms': 'Sedih', 'image': 'assets/Pictogram/Feelings/sad.png', 'color': Colors.pink.shade300, 'isFolder': false},
-      {'id': 'angry', 'folder': 'feelings', 'en': 'Angry', 'ms': 'Marah', 'image': 'assets/Pictogram/Feelings/angry.png', 'color': Colors.pink.shade300, 'isFolder': false},
-      {'id': 'family', 'folder': 'feelings', 'en': 'Family', 'ms': 'Keluarga', 'image': 'assets/Pictogram/Feelings/family.png', 'color': Colors.pink.shade300, 'isFolder': false},
-      {'id': 'quiet', 'folder': 'feelings', 'en': 'Quiet', 'ms': 'Senyap', 'image': 'assets/Pictogram/Feelings/quiet.png', 'color': Colors.pink.shade300, 'isFolder': false},
-      {'id': 'rest', 'folder': 'feelings', 'en': 'Rest', 'ms': 'Nak Rehat', 'image': 'assets/Pictogram/Feelings/rest.png', 'color': Colors.pink.shade300, 'isFolder': false},
-
-      // 6. KEBERSIHAN DIRI
-      {'id': 'diaper', 'folder': 'hygiene', 'en': 'Diaper', 'ms': 'Tukar Lampin', 'image': 'assets/Pictogram/Hygiene/diaper.png', 'color': Colors.cyan.shade400, 'isFolder': false},
-      {'id': 'shower', 'folder': 'hygiene', 'en': 'Shower', 'ms': 'Mandi / Lap', 'image': 'assets/Pictogram/Hygiene/shower.png', 'color': Colors.cyan.shade400, 'isFolder': false},
-      {'id': 'clothes', 'folder': 'hygiene', 'en': 'Change Clothes', 'ms': 'Tukar Baju', 'image': 'assets/Pictogram/Hygiene/clothes.png', 'color': Colors.cyan.shade400, 'isFolder': false},
-      {'id': 'brush', 'folder': 'hygiene', 'en': 'Brush Teeth', 'ms': 'Berus Gigi', 'image': 'assets/Pictogram/Hygiene/brush teeth.png', 'color': Colors.cyan.shade400, 'isFolder': false},
-
-      // 7. KAWALAN BILIK
-      {'id': 'light', 'folder': 'environment', 'en': 'Light', 'ms': 'Lampu', 'image': 'assets/Pictogram/Environment/light.png', 'color': Colors.indigo.shade400, 'isFolder': false},
-      {'id': 'fan', 'folder': 'environment', 'en': 'Fan/AC', 'ms': 'Kipas', 'image': 'assets/Pictogram/Environment/fan.png', 'color': Colors.indigo.shade400, 'isFolder': false},
-      {'id': 'noisy', 'folder': 'environment', 'en': 'Noisy', 'ms': 'Bising', 'image': 'assets/Pictogram/Environment/noisy.png', 'color': Colors.indigo.shade400, 'isFolder': false},
-      {'id': 'window', 'folder': 'environment', 'en': 'Window', 'ms': 'Tingkap', 'image': 'assets/Pictogram/Environment/open the window.png', 'color': Colors.indigo.shade400, 'isFolder': false},
-
-      // 8. LIFESTYLE & REHAB
-      {'id': 'physio', 'folder': 'rehab', 'en': 'Physio', 'ms': 'Senaman', 'image': 'assets/Pictogram/Lifestyle and Rehab/physiotherapy.png', 'color': Colors.lime.shade600, 'isFolder': false},
-      {'id': 'pray', 'folder': 'rehab', 'en': 'Pray', 'ms': 'Solat', 'image': 'assets/Pictogram/Lifestyle and Rehab/pray.png', 'color': Colors.lime.shade600, 'isFolder': false},
-      {'id': 'bored', 'folder': 'rehab', 'en': 'Bored/TV', 'ms': 'Bosan / TV', 'image': 'assets/Pictogram/Lifestyle and Rehab/bored.png', 'color': Colors.lime.shade600, 'isFolder': false},
-      {'id': 'phone', 'folder': 'rehab', 'en': 'Phone', 'ms': 'Telefon', 'image': 'assets/Pictogram/Lifestyle and Rehab/phone.png', 'color': Colors.lime.shade600, 'isFolder': false},
-
-      // 9. NOMBOR
-      {'id': 'num0', 'folder': 'number', 'en': 'Zero', 'ms': 'Kosong', 'image': 'assets/Pictogram/Number/0.png', 'color': Colors.brown.shade400, 'isFolder': false},
-      {'id': 'num1', 'folder': 'number', 'en': 'One', 'ms': 'Satu', 'image': 'assets/Pictogram/Number/one.png', 'color': Colors.brown.shade400, 'isFolder': false},
-      {'id': 'num2', 'folder': 'number', 'en': 'Two', 'ms': 'Dua', 'image': 'assets/Pictogram/Number/2.png', 'color': Colors.brown.shade400, 'isFolder': false},
-      {'id': 'num3', 'folder': 'number', 'en': 'Three', 'ms': 'Tiga', 'image': 'assets/Pictogram/Number/3.png', 'color': Colors.brown.shade400, 'isFolder': false},
-      {'id': 'num4', 'folder': 'number', 'en': 'Four', 'ms': 'Empat', 'image': 'assets/Pictogram/Number/4.png', 'color': Colors.brown.shade400, 'isFolder': false},
-      {'id': 'num5', 'folder': 'number', 'en': 'Five', 'ms': 'Lima', 'image': 'assets/Pictogram/Number/5.png', 'color': Colors.brown.shade400, 'isFolder': false},
-      {'id': 'num6', 'folder': 'number', 'en': 'Six', 'ms': 'Enam', 'image': 'assets/Pictogram/Number/6.png', 'color': Colors.brown.shade400, 'isFolder': false},
-      {'id': 'num7', 'folder': 'number', 'en': 'Seven', 'ms': 'Tujuh', 'image': 'assets/Pictogram/Number/7.png', 'color': Colors.brown.shade400, 'isFolder': false},
-      {'id': 'num8', 'folder': 'number', 'en': 'Eight', 'ms': 'Lapan', 'image': 'assets/Pictogram/Number/8.png', 'color': Colors.brown.shade400, 'isFolder': false},
-      {'id': 'num9', 'folder': 'number', 'en': 'Nine', 'ms': 'Sembilan', 'image': 'assets/Pictogram/Number/9.png', 'color': Colors.brown.shade400, 'isFolder': false},
-
-      // TAMBAHAN
-      {'id': 'done', 'folder': null, 'en': 'Done', 'ms': 'Selesai', 'image': 'assets/Pictogram/yes.png', 'color': Colors.grey, 'isFolder': false},
-      {'id': 'hospital', 'folder': null, 'en': 'Hospital', 'ms': 'Hospital', 'image': 'assets/Pictogram/SOS.png', 'color': Colors.red, 'isFolder': false},
+      {'id': 'medicine', 'folder': 'health', 'en': 'Medicine', 'ms': 'Ubat', 'image': 'assets/Pictogram/Health/medicine.png', 'isFolder': false},
+      {'id': 'dizzy', 'folder': 'health', 'en': 'Dizzy', 'ms': 'Pening', 'image': 'assets/Pictogram/Health/feel dizzy.png', 'isFolder': false},
+      {'id': 'breathe', 'folder': 'health', 'en': 'Breathe', 'ms': 'Susah Nafas', 'image': 'assets/Pictogram/Health/breathe.png', 'isFolder': false},
+      {'id': 'itchy', 'folder': 'health', 'en': 'Itchy', 'ms': 'Gatal', 'image': 'assets/Pictogram/Health/itch.png', 'isFolder': false},
+      {'id': 'tired', 'folder': 'health', 'en': 'Tired', 'ms': 'Penat', 'image': 'assets/Pictogram/Health/tired.png', 'isFolder': false},
+      {'id': 'sit', 'folder': 'body', 'en': 'Sit Up', 'ms': 'Duduk', 'image': 'assets/Pictogram/Body and Comfort/sit.png', 'isFolder': false},
+      {'id': 'lie', 'folder': 'body', 'en': 'Lie Down', 'ms': 'Baring', 'image': 'assets/Pictogram/Body and Comfort/lie down.png', 'isFolder': false},
+      {'id': 'turn', 'folder': 'body', 'en': 'Turn Me', 'ms': 'Pusing Badan', 'image': 'assets/Pictogram/Body and Comfort/turn.png', 'isFolder': false},
+      {'id': 'cold', 'folder': 'body', 'en': 'Cold', 'ms': 'Sejuk', 'image': 'assets/Pictogram/Body and Comfort/cold.png', 'isFolder': false},
+      {'id': 'hot', 'folder': 'body', 'en': 'Hot', 'ms': 'Panas', 'image': 'assets/Pictogram/Body and Comfort/be hot.png', 'isFolder': false},
+      {'id': 'water', 'folder': 'food_drinks', 'en': 'Water', 'ms': 'Air Kosong', 'image': 'assets/Pictogram/food_drinks/water.png', 'isFolder': false},
+      {'id': 'hungry', 'folder': 'food_drinks', 'en': 'Hungry', 'ms': 'Lapar', 'image': 'assets/Pictogram/food_drinks/hungry.png', 'isFolder': false},
+      {'id': 'porridge', 'folder': 'food_drinks', 'en': 'Porridge', 'ms': 'Bubur', 'image': 'assets/Pictogram/food_drinks/bowl.png', 'isFolder': false},
+      {'id': 'coffee', 'folder': 'food_drinks', 'en': 'Coffee', 'ms': 'Kopi', 'image': 'assets/Pictogram/food_drinks/coffee.png', 'isFolder': false},
+      {'id': 'tea', 'folder': 'food_drinks', 'en': 'Tea', 'ms': 'Teh', 'image': 'assets/Pictogram/food_drinks/tea.png', 'isFolder': false},
+      {'id': 'milk', 'folder': 'food_drinks', 'en': 'Milk', 'ms': 'Susu', 'image': 'assets/Pictogram/food_drinks/milk.png', 'isFolder': false},
+      {'id': 'happy', 'folder': 'feelings', 'en': 'Happy', 'ms': 'Gembira', 'image': 'assets/Pictogram/Feelings/happy.png', 'isFolder': false},
+      {'id': 'sad', 'folder': 'feelings', 'en': 'Sad', 'ms': 'Sedih', 'image': 'assets/Pictogram/Feelings/sad.png', 'isFolder': false},
+      {'id': 'angry', 'folder': 'feelings', 'en': 'Angry', 'ms': 'Marah', 'image': 'assets/Pictogram/Feelings/angry.png', 'isFolder': false},
+      {'id': 'family', 'folder': 'feelings', 'en': 'Family', 'ms': 'Keluarga', 'image': 'assets/Pictogram/Feelings/family.png', 'isFolder': false},
+      {'id': 'quiet', 'folder': 'feelings', 'en': 'Quiet', 'ms': 'Senyap', 'image': 'assets/Pictogram/Feelings/quiet.png', 'isFolder': false},
+      {'id': 'rest', 'folder': 'feelings', 'en': 'Rest', 'ms': 'Nak Rehat', 'image': 'assets/Pictogram/Feelings/rest.png', 'isFolder': false},
+      {'id': 'diaper', 'folder': 'hygiene', 'en': 'Diaper', 'ms': 'Tukar Lampin', 'image': 'assets/Pictogram/Hygiene/diaper.png', 'isFolder': false},
+      {'id': 'shower', 'folder': 'hygiene', 'en': 'Shower', 'ms': 'Mandi / Lap', 'image': 'assets/Pictogram/Hygiene/shower.png', 'isFolder': false},
+      {'id': 'clothes', 'folder': 'hygiene', 'en': 'Change Clothes', 'ms': 'Tukar Baju', 'image': 'assets/Pictogram/Hygiene/clothes.png', 'isFolder': false},
+      {'id': 'brush', 'folder': 'hygiene', 'en': 'Brush Teeth', 'ms': 'Berus Gigi', 'image': 'assets/Pictogram/Hygiene/brush teeth.png', 'isFolder': false},
+      {'id': 'light', 'folder': 'environment', 'en': 'Light', 'ms': 'Lampu', 'image': 'assets/Pictogram/Environment/light.png', 'isFolder': false},
+      {'id': 'fan', 'folder': 'environment', 'en': 'Fan/AC', 'ms': 'Kipas', 'image': 'assets/Pictogram/Environment/fan.png', 'isFolder': false},
+      {'id': 'noisy', 'folder': 'environment', 'en': 'Noisy', 'ms': 'Bising', 'image': 'assets/Pictogram/Environment/noisy.png', 'isFolder': false},
+      {'id': 'window', 'folder': 'environment', 'en': 'Window', 'ms': 'Tingkap', 'image': 'assets/Pictogram/Environment/open the window.png', 'isFolder': false},
+      {'id': 'physio', 'folder': 'rehab', 'en': 'Physio', 'ms': 'Senaman', 'image': 'assets/Pictogram/Lifestyle and Rehab/physiotherapy.png', 'isFolder': false},
+      {'id': 'pray', 'folder': 'rehab', 'en': 'Pray', 'ms': 'Solat', 'image': 'assets/Pictogram/Lifestyle and Rehab/pray.png', 'isFolder': false},
+      {'id': 'bored', 'folder': 'rehab', 'en': 'Bored/TV', 'ms': 'Bosan / TV', 'image': 'assets/Pictogram/Lifestyle and Rehab/bored.png', 'isFolder': false},
+      {'id': 'phone', 'folder': 'rehab', 'en': 'Phone', 'ms': 'Telefon', 'image': 'assets/Pictogram/Lifestyle and Rehab/phone.png', 'isFolder': false},
+      {'id': 'num0', 'folder': 'number', 'en': 'Zero', 'ms': 'Kosong', 'image': 'assets/Pictogram/Number/0.png', 'isFolder': false},
+      {'id': 'num1', 'folder': 'number', 'en': 'One', 'ms': 'Satu', 'image': 'assets/Pictogram/Number/one.png', 'isFolder': false},
+      {'id': 'num2', 'folder': 'number', 'en': 'Two', 'ms': 'Dua', 'image': 'assets/Pictogram/Number/2.png', 'isFolder': false},
+      {'id': 'num3', 'folder': 'number', 'en': 'Three', 'ms': 'Tiga', 'image': 'assets/Pictogram/Number/3.png', 'isFolder': false},
+      {'id': 'num4', 'folder': 'number', 'en': 'Four', 'ms': 'Empat', 'image': 'assets/Pictogram/Number/4.png', 'isFolder': false},
+      {'id': 'num5', 'folder': 'number', 'en': 'Five', 'ms': 'Lima', 'image': 'assets/Pictogram/Number/5.png', 'isFolder': false},
+      {'id': 'num6', 'folder': 'number', 'en': 'Six', 'ms': 'Enam', 'image': 'assets/Pictogram/Number/6.png', 'isFolder': false},
+      {'id': 'num7', 'folder': 'number', 'en': 'Seven', 'ms': 'Tujuh', 'image': 'assets/Pictogram/Number/7.png', 'isFolder': false},
+      {'id': 'num8', 'folder': 'number', 'en': 'Eight', 'ms': 'Lapan', 'image': 'assets/Pictogram/Number/8.png', 'isFolder': false},
+      {'id': 'num9', 'folder': 'number', 'en': 'Nine', 'ms': 'Sembilan', 'image': 'assets/Pictogram/Number/9.png', 'isFolder': false},
+      {'id': 'done', 'folder': null, 'en': 'Done', 'ms': 'Selesai', 'image': 'assets/Pictogram/yes.png', 'isFolder': false},
+      {'id': 'hospital', 'folder': null, 'en': 'Hospital', 'ms': 'Tolong', 'image': 'assets/Pictogram/hospital.png', 'isFolder': false},
     ];
+
+    _staticData = rawStatic.map((item) {
+      item['source'] = 'static'; // 🚀 Tag statik
+      return item;
+    }).toList();
     _mergedData = List.from(_staticData);
   }
 
@@ -389,22 +313,19 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) { setState(() => _isLoadingFirebase = false); return; }
 
-    FirebaseFirestore.instance
-        .collection('caregivers').doc(user.uid).collection('custom_pictograms')
-        .snapshots().listen((snapshot) {
+    List<Map<String, dynamic>> globalItems = [];
+    Map<String, String> dynamicFolderSources = {}; // 🚀 Jejaki asal usul folder
 
-      List<Map<String, dynamic>> firebaseItems = [];
-      Set<String> subFoldersFound = {};
-
-      for (var doc in snapshot.docs) {
+    try {
+      final globalSnap = await FirebaseFirestore.instance.collection('global_pictograms').get();
+      for (var doc in globalSnap.docs) {
         final data = doc.data();
-        String cat = data['category'] ?? 'custom';
+        String cat = data['category'] ?? 'uncategorized';
         String? parent = data['parent_folder'];
-        String folderTarget = (parent != null && parent.isNotEmpty) ? cat : cat;
 
-        firebaseItems.add({
+        globalItems.add({
           'id': data['pic_id'],
-          'folder': folderTarget,
+          'folder': cat,
           'category': cat,
           'parent_folder': parent,
           'en': data['label_en'],
@@ -412,13 +333,53 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           'image': data['image_url'],
           'isFolder': false,
           'isNetwork': true,
+          'source': 'global', // 🚀 Tag Global
         });
-        if (parent != null && parent.isNotEmpty) subFoldersFound.add("$cat|$parent");
+
+        if (parent != null && parent.isNotEmpty) {
+          dynamicFolderSources["$cat|$parent"] = 'global';
+        }
+      }
+    } catch (e) {
+      print("🚨 J.A.R.V.I.S: Gagal sedut Global Dictionary -> $e");
+    }
+
+    FirebaseFirestore.instance
+        .collection('caregivers').doc(user.uid).collection('custom_pictograms')
+        .snapshots().listen((snapshot) {
+
+      List<Map<String, dynamic>> customItems = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        String cat = data['category'] ?? 'custom';
+        String? parent = data['parent_folder'];
+
+        customItems.add({
+          'id': data['pic_id'],
+          'folder': cat,
+          'category': cat,
+          'parent_folder': parent,
+          'en': data['label_en'],
+          'ms': data['label_ms'],
+          'image': data['image_url'],
+          'isFolder': false,
+          'isNetwork': true,
+          'source': 'custom', // 🚀 Tag Custom
+        });
+
+        if (parent != null && parent.isNotEmpty) {
+          // Kalau folder tu diwujudkan oleh user, kita tag as custom
+          // Walaupun nama dia sama dengan global, custom akan take-over visual dia
+          dynamicFolderSources["$cat|$parent"] = 'custom';
+        }
       }
 
       List<Map<String, dynamic>> dynamicFolders = [];
-      for (var folderInfo in subFoldersFound) {
+      for (var folderInfo in dynamicFolderSources.keys) {
         var parts = folderInfo.split('|');
+        String sourceTag = dynamicFolderSources[folderInfo]!;
+
         dynamicFolders.add({
           'id': parts[0],
           'folder': parts[1],
@@ -427,54 +388,42 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           'image': 'assets/Pictogram/Environment/light.png',
           'isFolder': true,
           'isNetwork': false,
+          'source': sourceTag, // 🚀 Tag Folder
         });
       }
 
       if (mounted) {
         setState(() {
-          _mergedData = [..._staticData, ...dynamicFolders, ...firebaseItems];
+          _mergedData = [..._staticData, ...dynamicFolders, ...globalItems, ...customItems];
           _isLoadingFirebase = false;
         });
       }
     });
   }
 
-  // =========================================================
-  // 🎯 LITAR SUSUNAN DYNAMIC GRID (VERSI KUASA ANAK-BAPAK)
-  // =========================================================
-
-  // Fungsi khas untuk kira frekuensi (Bapak sedut markah anak)
   int _calculateItemFrequency(Map<String, dynamic> item) {
     bool isFolder = item['isFolder'] ?? false;
     String id = item['id'] ?? '';
 
     if (!isFolder) {
-      // Kalau ni gambar biasa (Tired, Yes, No) -> Ambil direct dari rekod
       return _globalFrequencyMap[id] ?? 0;
     } else {
-      // Kalau ni FOLDER (Health, Body) -> Campurkan semua markah anak-anak dia
       int totalFolderFreq = 0;
       var children = _mergedData.where((child) => child['folder'] == id);
       for (var child in children) {
         totalFolderFreq += (_globalFrequencyMap[child['id']] ?? 0);
       }
-      return totalFolderFreq; // Pulangkan markah hasil gabungan
+      return totalFolderFreq;
     }
   }
 
   List<Map<String, dynamic>> get _currentDisplayItems {
-    // 1. Ambil list item yang sepadan dengan folder semasa
     List<Map<String, dynamic>> itemsInFolder = _mergedData.where((item) => item['folder'] == _currentFolder).toList();
-
-    // 2. Susun item guna enjin pengiraan baru
     itemsInFolder.sort((a, b) {
       int freqA = _calculateItemFrequency(a);
       int freqB = _calculateItemFrequency(b);
-
-      // Susun secara menurun (Yang markah tinggi, tamak duduk atas!)
       return freqB.compareTo(freqA);
     });
-
     return itemsInFolder;
   }
 
@@ -482,9 +431,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   void _removeLastItem() { if (_selectedItems.isNotEmpty) setState(() => _selectedItems.removeLast()); }
   void _clearAllItems() => setState(() => _selectedItems.clear());
 
-  // =========================================================
-  // 🚨 J.A.R.V.I.S: PROTOKOL KECEMASAN MUTAHIR (SOS SYSTEM)
-  // =========================================================
   Future<void> _triggerSOS() async {
     final user = FirebaseAuth.instance.currentUser;
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -492,28 +438,20 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     String? patientId = prefs.getString('patient_id');
     String patientName = prefs.getString('patient_name') ?? "Pesakit Tanpa Nama";
 
-    if (user == null || patientId == null) {
-      print("🚨 J.A.R.V.I.S Error: Identiti hilang. Tak boleh lancar SOS!");
-      return;
-    }
+    if (user == null || patientId == null) return;
 
     try {
-      // 1. Bunyikan Siren Kat Fon Pesakit Dulu
       await _ttsService.stop();
       await _ttsService.speak("Kecemasan! Saya perlukan bantuan!", lang: "ms-MY");
 
-      // 2. Tembak Peluru SOS ke Cloud Firestore
       await FirebaseFirestore.instance.collection('sos_alerts').add({
         'caregiver_id': user.uid,
         'patient_id': patientId,
         'patient_name': patientName,
-        'status': 'ACTIVE', // Status kritikal
+        'status': 'ACTIVE',
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      print("✅ J.A.R.V.I.S: Isyarat SOS telah berjaya ditembak ke pangkalan utama!");
-
-      // 3. Tunjuk Snackbar kat skrin pesakit supaya dia tahu amaran dah dihantar
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -530,7 +468,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
         );
       }
     } catch (e) {
-      print("🚨 J.A.R.V.I.S Error: SOS gagal dilancarkan -> $e");
+      print("🚨 J.A.R.V.I.S Error: SOS gagal -> $e");
     }
   }
 
@@ -603,7 +541,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
                           return InkWell(
                             onTap: () async {
                               setState(() => _selectedItems.add(suggestion));
-
                               await _ttsService.stop();
                               await _applyStoredSettings();
                               await _ttsService.speak(suggestion['en'], lang: "en-US");
@@ -651,8 +588,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           ],
         ),
       ),
-
-      // 🚀 J.A.R.V.I.S: BUTANG KECEMASAN TERAPUNG (SENTIASA ADA)
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           showDialog(
@@ -675,7 +610,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    _triggerSOS(); // Tembak litar SOS!
+                    _triggerSOS();
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                   child: const Text("YA, TOLONG SAYA!", style: TextStyle(color: Colors.white)),
@@ -692,9 +627,36 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     );
   }
 
+  // =========================================================
+  // 🎨 LITAR UI: SMART CARD DENGAN COLOR-CODING
+  // =========================================================
   Widget _buildSmartCard(Map<String, dynamic> item) {
     bool isFolder = item['isFolder'] ?? false;
-    Color borderColor = isFolder ? AppTheme.primaryBlue : Colors.grey.shade300;
+    String source = item['source'] ?? 'static'; // Tag yang kita buat tadi
+
+    Color folderColor;
+    Color itemBorderColor;
+    IconData? sourceIcon;
+    Color? sourceIconColor;
+
+    // 🚀 LITAR PENENTUAN WARNA & BADGE
+    if (source == 'global') {
+      folderColor = Colors.indigo;
+      itemBorderColor = Colors.indigo.shade300;
+      sourceIcon = Icons.verified_rounded; // Badge Admin/Global
+      sourceIconColor = Colors.indigo;
+    } else if (source == 'custom') {
+      folderColor = Colors.orange.shade700;
+      itemBorderColor = Colors.orange.shade300;
+      sourceIcon = Icons.person; // Badge User/Caregiver
+      sourceIconColor = Colors.orange.shade700;
+    } else {
+      // 'static' atau Bawaan App
+      folderColor = AppTheme.primaryBlue;
+      itemBorderColor = Colors.grey.shade300;
+    }
+
+    Color borderColor = isFolder ? folderColor : itemBorderColor;
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -704,14 +666,11 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
             _folderHistory.add(item['id']);
             _currentFolder = item['id'];
           });
-          // 🚀 J.A.R.V.I.S: Litar SOS dari grid dah DIBUANG sepenuhnya!
         } else {
           setState(() => _selectedItems.add(item));
           await _ttsService.stop();
-
           await _applyStoredSettings();
           await _ttsService.speak(item['en'], lang: "en-US");
-
           await _logCommunicationToFirebase(item['en'], [item['id']]);
         }
       },
@@ -737,13 +696,29 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
               ),
             ),
           ),
+
+          // Folder Tab (Kiri Atas)
           if (isFolder)
             Positioned(
               top: 0, left: 15,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: const BoxDecoration(color: AppTheme.primaryBlue, borderRadius: BorderRadius.only(topLeft: Radius.circular(10), topRight: Radius.circular(10))),
+                decoration: BoxDecoration(color: folderColor, borderRadius: const BorderRadius.only(topLeft: Radius.circular(10), topRight: Radius.circular(10))),
                 child: const Icon(Icons.folder_rounded, color: Colors.white, size: 14),
+              ),
+            ),
+
+          // 🚀 Badge Tanda Pangkat (Kanan Atas) - Hanya untuk Global/Custom
+          if (sourceIcon != null)
+            Positioned(
+              top: isFolder ? 18 : 6, right: 6,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: sourceIconColor!.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(sourceIcon, size: 14, color: sourceIconColor),
               ),
             ),
         ],
