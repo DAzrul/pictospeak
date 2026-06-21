@@ -23,6 +23,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   final List<String> _folderHistory = [];
   final List<Map<String, dynamic>> _selectedItems = [];
 
+
   List<Map<String, dynamic>> _mergedData = [];
   late List<Map<String, dynamic>> _staticData;
   bool _isLoadingFirebase = true;

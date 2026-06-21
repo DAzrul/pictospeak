@@ -84,22 +84,6 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     // =========================================================
-    // 1. MAINTENANCE CHECK (The Doorman)
-    // =========================================================
-    try {
-      var doc = await FirebaseFirestore.instance.collection('system_configs').doc('general').get();
-      bool isMaintenance = doc.data()?['maintenance_mode'] ?? false;
-
-      if (isMaintenance) {
-        if (!mounted) return;
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MaintenanceScreen()));
-        return;
-      }
-    } catch (e) {
-      print("🚨 J.A.R.V.I.S: Firestore offline. Meneruskan protokol tanpa semakan: $e");
-    }
-
-    // =========================================================
     // 2. DATA INJECTION (Background setup)
     // =========================================================
     try {
@@ -226,7 +210,7 @@ class _SplashScreenState extends State<SplashScreen> {
               child: Center(
                 child: Column(
                   children: [
-                    Text('v1.6.7 Stable', style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
+                    Text('v2.6.7 Stable', style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
                     const Text('UTeM PSM PROJECT', style: TextStyle(fontSize: 9, color: Colors.grey, letterSpacing: 1.5)),
                   ],

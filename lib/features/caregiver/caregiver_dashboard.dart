@@ -1,10 +1,11 @@
-import 'dart:async'; // 🚀 J.A.R.V.I.S: Import ni wajib untuk StreamSubscription
-import 'dart:io'; // 🚀 J.A.R.V.I.S: Untuk check Android/iOS
-import 'package:flutter/foundation.dart' show kIsWeb; // 🚀 J.A.R.V.I.S: Untuk check Web
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // 🚀 J.A.R.V.I.S: Enjin Notification
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🚀 J.A.R.V.I.S: WAJIB IMPORT UNTUK MEMORI!
 import 'package:pictospeak/features/caregiver/patient_details_screen.dart';
 import '../../core/theme/app_theme.dart';
 import '../auth/patient_pin_screen.dart';
@@ -26,22 +27,52 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
   int _selectedIndex = 0;
   final AuthService _authService = AuthService();
 
-  // 🚨 J.A.R.V.I.S: Enjin Bunyi Siren & Radar
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isSosActive = false;
-  bool _isSosDialogOpen = false; // 🚀 LITAR BARU: Penjejak Popup Jarak Jauh
+  bool _isSosDialogOpen = false;
   StreamSubscription<QuerySnapshot>? _sosSubscription;
+
+  // 🚀 J.A.R.V.I.S: PEMBOLEHUBAH MEMORI NOTIFIKASI
+  String _lastSeenAnnouncement = '';
+  int _lastSeenResolvedCount = 0;
 
   @override
   void initState() {
     super.initState();
     _startSosRadar();
     _registerDeviceToken();
+    _loadNotificationState(); // 🚀 Sedut memori lama masa app buka
   }
 
   // =========================================================
-  // 📡 J.A.R.V.I.S: SISTEM PENDAFTARAN RADAR (FCM TOKENS)
+  // 🚀 LITAR MEMORI: BACA APA YANG USER DAH TENGOK
   // =========================================================
+  Future<void> _loadNotificationState() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _lastSeenAnnouncement = prefs.getString('last_seen_announcement') ?? '';
+        _lastSeenResolvedCount = prefs.getInt('last_seen_resolved_count') ?? 0;
+      });
+    }
+  }
+
+  // =========================================================
+  // 🚀 LITAR PADAM TITIK MERAH (MARK AS READ)
+  // =========================================================
+  Future<void> _markNotificationsAsRead(String currentAnnouncement, int currentResolvedCount) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_seen_announcement', currentAnnouncement);
+    await prefs.setInt('last_seen_resolved_count', currentResolvedCount);
+
+    if (mounted) {
+      setState(() {
+        _lastSeenAnnouncement = currentAnnouncement;
+        _lastSeenResolvedCount = currentResolvedCount;
+      });
+    }
+  }
+
   Future<void> _registerDeviceToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -69,20 +100,13 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
             'platform': devicePlatform,
             'last_updated': FieldValue.serverTimestamp(),
           });
-
-          debugPrint("✅ J.A.R.V.I.S: Radar dipasang! Token $devicePlatform didaftarkan.");
         }
-      } else {
-        debugPrint("🚨 J.A.R.V.I.S: Penjaga kedekut, tak bagi kebenaran notification.");
       }
     } catch (e) {
       debugPrint("🚨 J.A.R.V.I.S Error: Gagal daftar token -> $e");
     }
   }
 
-  // =========================================================
-  // 🚨 LITAR RADAR SOS (VERSI QUEUE BERGILIR - KALIS MULTI-PATIENT)
-  // =========================================================
   void _startSosRadar() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -94,27 +118,21 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
         .snapshots()
         .listen((snapshot) {
 
-      // 🚀 J.A.R.V.I.S REMOTE KILL SWITCH: Kalau orang lain dah setel, bunuh siren & tutup popup!
       if (snapshot.docs.isEmpty) {
         _audioPlayer.setReleaseMode(ReleaseMode.stop);
         _audioPlayer.stop();
-        _isSosActive = false; // Buka balik mangga
+        _isSosActive = false;
 
-        // Kalau skrin ni tengah buka popup, bunuh popup tu secara paksa!
         if (_isSosDialogOpen && mounted) {
           _isSosDialogOpen = false;
           Navigator.of(context, rootNavigator: true).pop();
-          debugPrint("✅ J.A.R.V.I.S: Popup SOS ditutup dari jarak jauh!");
         }
         return;
       }
 
-      // Kalau litar tengah sibuk handle pesakit A, abaikan dulu.
       if (_isSosActive) return;
 
-      // Kunci litar & ambil dokumen TERATAS (First in line)
       _isSosActive = true;
-
       final data = snapshot.docs.first.data() as Map<String, dynamic>;
       final targetPatientId = data['patient_id'];
       String pName = data['patient_name'] ?? 'Pesakit';
@@ -123,13 +141,8 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     });
   }
 
-  // =========================================================
-  // 🚨 LITAR PENGGERA & POP-UP (VERSI TARGETED STRIKE - ANTI BLACK SCREEN)
-  // =========================================================
   void _triggerSosAlarm(String patientName, String targetPatientId) async {
     if (!mounted) return;
-
-    // 🚀 J.A.R.V.I.S: Kalau popup dah terbentang, jangan bukak popup baru berlapis-lapis!
     if (_isSosDialogOpen) return;
 
     setState(() {});
@@ -146,7 +159,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (BuildContext dialogContext) { // 🚀 GUNA dialogContext DI SINI!
+        builder: (BuildContext dialogContext) {
           return AlertDialog(
             backgroundColor: Colors.red.shade600,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -169,21 +182,14 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
-                    // 🚀 LANGKAH 1: TUTUP DIALOG DULU! (Elak Black Screen / Double Pop)
                     Navigator.pop(dialogContext);
-
-                    // 🚀 LANGKAH 2: MATIKAN SIREN
                     await _audioPlayer.setReleaseMode(ReleaseMode.stop);
                     await _audioPlayer.stop();
 
-                    // 🚀 LANGKAH 3: RESET LITAR RADAR
                     _isSosActive = false;
                     _isSosDialogOpen = false;
                     if (mounted) setState(() {});
 
-                    // 🚀 LANGKAH 4: BARU UPDATE DATABASE!
-                    // (Sebab kita dah tutup dialog awal-awal, bila stream trigger Remote Kill Switch,
-                    // dia takkan jumpa dialog untuk di-pop lagi!)
                     final user = FirebaseAuth.instance.currentUser;
                     if (user != null) {
                       var activeSosDocs = await FirebaseFirestore.instance
@@ -213,7 +219,6 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
           );
         }
     ).then((_) {
-      // 🚀 J.A.R.V.I.S: Pastikan mangga litar direlease kalau popup hilang
       _isSosDialogOpen = false;
       _isSosActive = false;
     });
@@ -226,8 +231,188 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     super.dispose();
   }
 
-  // 🚀 J.A.R.V.I.S: Litar untuk tukar tab bawah
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
+
+  // =========================================================
+  // 🚀 LITAR PANEL NOTIFIKASI PINTAR
+  // =========================================================
+  void _showNotificationsPanel(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24.0),
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.notifications_active_rounded, color: AppTheme.primaryBlue),
+                      SizedBox(width: 10),
+                      Text("Pusat Notifikasi", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppTheme.textDark)),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.grey),
+                    onPressed: () => Navigator.pop(context),
+                  )
+                ],
+              ),
+              const Text("Pengumuman rasmi dan status tiket anda.", style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const SizedBox(height: 16),
+
+              // 🚀 1. LITAR PENGUMUMAN ADMIN
+              StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance.collection('system_configs').doc('general').snapshots(),
+                builder: (context, configSnapshot) {
+                  if (!configSnapshot.hasData || !configSnapshot.data!.exists) return const SizedBox.shrink();
+
+                  var configData = configSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+                  String announcement = configData['announcement_text'] ?? '';
+
+                  if (announcement.trim().isEmpty) return const SizedBox.shrink();
+
+                  return Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.amber.shade300, width: 1.5)
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.campaign_outlined, color: Colors.amber.shade800, size: 20),
+                            const SizedBox(width: 8),
+                            Text("PENGUMUMAN SISTEM", style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                            announcement,
+                            style: TextStyle(color: Colors.amber.shade900, fontSize: 14, fontWeight: FontWeight.bold)
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              // 🚀 2. LITAR TIKET CAREGIVER (SEBAGAI HISTORY)
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('support_tickets')
+                      .where('user_email', isEqualTo: user?.email)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue));
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.inbox_rounded, size: 60, color: Colors.grey.shade300),
+                            const SizedBox(height: 16),
+                            const Text("Tiada maklum balas tiket buat masa ini.", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final docs = snapshot.data!.docs.toList();
+                    docs.sort((a, b) {
+                      Timestamp tA = (a.data() as Map<String, dynamic>)['timestamp'] ?? Timestamp.now();
+                      Timestamp tB = (b.data() as Map<String, dynamic>)['timestamp'] ?? Timestamp.now();
+                      return tB.compareTo(tA);
+                    });
+
+                    return ListView.builder(
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        var data = docs[index].data() as Map<String, dynamic>;
+                        bool isResolved = data['status'] == 'RESOLVED';
+
+                        return Card(
+                          elevation: 0,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          color: isResolved ? Colors.green.shade50 : Colors.orange.shade50,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(color: isResolved ? Colors.green.shade200 : Colors.orange.shade200, width: 1.5)
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  isResolved ? Icons.check_circle_rounded : Icons.hourglass_top_rounded,
+                                  color: isResolved ? Colors.green.shade600 : Colors.orange.shade600,
+                                  size: 28,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                          data['message'] ?? '',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.textDark)
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                            color: isResolved ? Colors.green.shade100 : Colors.orange.shade100,
+                                            borderRadius: BorderRadius.circular(8)
+                                        ),
+                                        child: Text(
+                                            isResolved ? "SELESAI" : "SEDANG DIPROSES",
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w900,
+                                                color: isResolved ? Colors.green.shade800 : Colors.orange.shade800
+                                            )
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -236,6 +421,8 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
       const LibraryScreen(),
       const SettingsScreen(),
     ];
+
+    final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -256,9 +443,51 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
             style: TextStyle(color: AppTheme.textDark, fontSize: 18, fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none_rounded, color: Colors.grey),
-            onPressed: () {},
+          // 🚀 LITAR LOCENG PINTAR DENGAN "MEMORI"
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance.collection('system_configs').doc('general').snapshots(),
+            builder: (context, configSnapshot) {
+              String currentAnnouncement = '';
+              if (configSnapshot.hasData && configSnapshot.data!.exists) {
+                var configData = configSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+                currentAnnouncement = configData['announcement_text'] ?? '';
+              }
+
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('support_tickets')
+                    .where('user_email', isEqualTo: user?.email)
+                    .snapshots(),
+                builder: (context, ticketSnapshot) {
+                  int currentResolvedCount = 0;
+                  if (ticketSnapshot.hasData) {
+                    currentResolvedCount = ticketSnapshot.data!.docs
+                        .where((doc) => (doc.data() as Map<String, dynamic>)['status'] == 'RESOLVED')
+                        .length;
+                  }
+
+                  // 🚀 Logik Memori: Nyala KALAU pengumuman tak sama dengan apa yang dihafal,
+                  // ATAU jumlah tiket yang selesai lebih banyak dari apa yang dihafal.
+                  bool hasNewAnnouncement = currentAnnouncement.trim().isNotEmpty && currentAnnouncement != _lastSeenAnnouncement;
+                  bool hasNewResolvedTicket = currentResolvedCount > _lastSeenResolvedCount;
+
+                  bool showBadge = hasNewAnnouncement || hasNewResolvedTicket;
+
+                  return IconButton(
+                    icon: Badge(
+                      isLabelVisible: showBadge,
+                      backgroundColor: Colors.red.shade600,
+                      child: const Icon(Icons.notifications_active_outlined, color: AppTheme.primaryBlue),
+                    ),
+                    onPressed: () {
+                      // Bila tekan, J.A.R.V.I.S terus "Hafal" data baru supaya titik merah padam!
+                      _markNotificationsAsRead(currentAnnouncement, currentResolvedCount);
+                      _showNotificationsPanel(context);
+                    },
+                  );
+                },
+              );
+            },
           )
         ],
       ),
@@ -296,7 +525,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     );
   }
 
-  // --- TAB 0: LITAR SENARAI PESAKIT (LIVE STREAM) ---
+  // --- TAB 0: LITAR SENARAI PESAKIT ---
   Widget _buildPatientsListTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: _authService.getPatientsStream(),
@@ -327,7 +556,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     );
   }
 
-  // --- KAD PESAKIT (VERSION MARK 129 - WITH FAST TRACK) ---
+  // --- KAD PESAKIT ---
   Widget _buildPatientCard(Map<String, dynamic> data) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),

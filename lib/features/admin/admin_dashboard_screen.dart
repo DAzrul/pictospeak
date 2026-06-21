@@ -25,6 +25,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _newMainController = TextEditingController();
   final _newSubController = TextEditingController();
 
+  // 🚀 LITAR SEARCH J.A.R.V.I.S
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+
   String _selectedMainCategory = 'health';
   String _selectedSubCategory = 'none';
 
@@ -74,6 +78,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _labelMsController.dispose();
     _newMainController.dispose();
     _newSubController.dispose();
+    _searchController.dispose(); // 🚀 WAJIB DISPOSE
     super.dispose();
   }
 
@@ -100,6 +105,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       debugPrint("🚨 Audit Trail Failure: $e");
     }
   }
+
+  // 🚀 Litar Tambahan Untuk Simpan Hits Bulanan (12 Bulan)
+  List<int> _monthlyHits = List.generate(12, (_) => 0);
 
   Future<void> _fetchGlobalAnalytics() async {
     setState(() => _isLoadingAnalytics = true);
@@ -144,25 +152,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       } catch (e) { debugPrint("🚨 Ralat Trend Pesakit: $e"); }
 
+      // =======================================================
+      // 🚀 LITAR DEWA: KIRAAN TREND & GRAF BULANAN (REAL DATA)
+      // =======================================================
       int currentMonthClicks = 0, pastMonthClicks = 0;
       String sTrendText = "+0.0%";
       Color sTrendColor = const Color(0xFF0D652D), sTrendBg = const Color(0xFFE6F4EA);
 
+      List<int> tempMonthlyHits = List.generate(12, (_) => 0);
+
       try {
         DateTime now = DateTime.now();
+        DateTime startOfThisYear = DateTime(now.year, 1, 1);
         DateTime startOfThisMonth = DateTime(now.year, now.month, 1);
         DateTime startOfLastMonth = DateTime(now.year, now.month - 1, 1);
 
-        final currentClicksSnap = await FirebaseFirestore.instance.collection('usage_logs')
-            .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfThisMonth))
-            .count().get();
-        currentMonthClicks = currentClicksSnap.count ?? 0;
+        final yearlyLogsSnap = await FirebaseFirestore.instance.collection('usage_logs')
+            .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfThisYear))
+            .get();
 
-        final pastClicksSnap = await FirebaseFirestore.instance.collection('usage_logs')
-            .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfLastMonth))
-            .where('timestamp', isLessThan: Timestamp.fromDate(startOfThisMonth))
-            .count().get();
-        pastMonthClicks = pastClicksSnap.count ?? 0;
+        for (var doc in yearlyLogsSnap.docs) {
+          final data = doc.data();
+          if (data['timestamp'] != null) {
+            DateTime logDate = (data['timestamp'] as Timestamp).toDate();
+            int monthIndex = logDate.month - 1;
+
+            tempMonthlyHits[monthIndex]++;
+
+            if (logDate.isAfter(startOfThisMonth) || logDate.isAtSameMomentAs(startOfThisMonth)) {
+              currentMonthClicks++;
+            } else if ((logDate.isAfter(startOfLastMonth) || logDate.isAtSameMomentAs(startOfLastMonth)) && logDate.isBefore(startOfThisMonth)) {
+              pastMonthClicks++;
+            }
+          }
+        }
 
         double sGrowth = 0;
         if (pastMonthClicks == 0 && currentMonthClicks > 0) sGrowth = 100.0;
@@ -174,7 +197,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           sTrendText = "${sGrowth.toStringAsFixed(1)}%";
           sTrendColor = Colors.red.shade700; sTrendBg = Colors.red.shade50;
         }
-      } catch (e) { debugPrint("🚨 Ralat Trend Clicks: $e"); }
+      } catch (e) { debugPrint("🚨 Ralat Litar Bulanan: $e"); }
 
       String sessionText = "0m 0s";
       String sessionTText = "+0.0%";
@@ -214,6 +237,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
           _patientTrendText = pTrendText; _patientTrendColor = pTrendColor; _patientTrendBg = pTrendBg;
           _selectionsTrendText = sTrendText; _selectionsTrendColor = sTrendColor; _selectionsTrendBg = sTrendBg;
+          _monthlyHits = tempMonthlyHits;
 
           _avgSessionText = sessionText; _sessionTrendText = sessionTText;
           _sessionTrendColor = sessionTColor; _sessionTrendBg = sessionTBg;
@@ -227,7 +251,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  // 🚀 ENJIN SEDUT FOLDER DINAMIK BERKUASA VAKUM NORMALISASI
   Future<void> _scanGlobalFolders() async {
     try {
       final snapshot = await FirebaseFirestore.instance.collection('global_pictograms').get();
@@ -265,13 +288,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  // 🚀 J.A.R.V.I.S FORMATA: Paksa huruf kecil, ganti space/sengkang jadi underscore (_)
   String _formatToId(String raw) {
     if (raw.isEmpty) return '';
     return raw.trim().toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
   }
 
-  // Paparan cantik kat Dropdown
   String _formatToDisplay(String raw) => raw.replaceAll('_', ' ').replaceAll('-', ' ').toUpperCase();
 
   String get _destinationPath {
@@ -347,10 +368,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       body: Row(
         children: [
-          // 👈 SIDEBAR (Style V0 Tepat - Rujuk imej 6)
+          // 👈 SIDEBAR
           Container(
             width: 250,
-            color: const Color(0xFF1E1B4B), // Biru Gelap
+            color: const Color(0xFF1E1B4B),
             child: Column(
               children: [
                 Padding(
@@ -411,29 +432,64 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                       Row(
                         children: [
+                          // 🚀 SEARCH BAR BERFUNGSI
                           Container(
                             width: 250,
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
-                            child: const TextField(
-                                decoration: InputDecoration(
+                            child: TextField(
+                                controller: _searchController,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _searchQuery = value.trim().toLowerCase();
+                                  });
+                                },
+                                decoration: const InputDecoration(
                                     icon: Icon(Icons.search, color: Colors.grey, size: 20),
                                     border: InputBorder.none,
-                                    hintText: "Search...",
+                                    hintText: "Search here...",
                                     hintStyle: TextStyle(fontSize: 14)
                                 )
                             ),
                           ),
                           const SizedBox(width: 16),
-                          Container(
-                            decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.grey.shade300)
-                            ),
-                            child: IconButton(
-                              icon: const Icon(Icons.notifications_none, color: Colors.grey, size: 22),
-                              onPressed: () {},
-                            ),
+
+                          // 🚀 NOTIFICATION BELL BERFUNGSI (LIVE BADGE DARI FIREBASE)
+                          StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance.collection('support_tickets').where('status', isEqualTo: 'PENDING').snapshots(),
+                              builder: (context, snapshot) {
+                                int pendingCount = snapshot.data?.docs.length ?? 0;
+
+                                return Container(
+                                  decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.grey.shade300)
+                                  ),
+                                  child: Badge(
+                                    isLabelVisible: pendingCount > 0,
+                                    label: Text('$pendingCount', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                                    backgroundColor: Colors.red.shade600,
+                                    alignment: const Alignment(0.6, -0.6), // Kedudukan titik merah
+                                    child: IconButton(
+                                      icon: const Icon(Icons.notifications_none, color: Colors.grey, size: 22),
+                                      onPressed: () {
+                                        if (pendingCount > 0) {
+                                          // 🚀 Kalau tekan loceng, auto lompat pergi Tab Support Tickets!
+                                          setState(() {
+                                            _selectedIndex = 2;
+                                            _searchQuery = "";
+                                            _searchController.clear();
+                                          });
+                                        } else {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text("All clear! Tiada tiket yang tertunggak."), backgroundColor: Colors.green),
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                );
+                              }
                           ),
                         ],
                       )
@@ -453,16 +509,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // 🚀 Sidebar Item UI (Style V0 Tepat)
   Widget _buildNavItem(int index, IconData icon, String title, String subtitle) {
     bool isSelected = _selectedIndex == index;
     return InkWell(
-      onTap: () => setState(() => _selectedIndex = index),
+      onTap: () {
+        setState(() {
+          _selectedIndex = index;
+          // Kosongkan search bar bila tukar tab supaya tak sangkut filter
+          _searchQuery = "";
+          _searchController.clear();
+        });
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent, // Putih kalau aktif
+          color: isSelected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -513,12 +575,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   // =======================================================
-  // 📊 TAB 1: ANALYTICS (Gaya Compact & Berbulan)
+  // 📊 TAB 1: ANALYTICS
   // =======================================================
   Widget _buildAnalyticsTab(List<MapEntry<String, int>> sortedEntries) {
     if (_isLoadingAnalytics) return const Center(child: CircularProgressIndicator(color: Colors.indigo));
 
     final List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    // 🚀 LITAR PENAPISAN SEARCH UNTUK PICTOGRAMS
+    List<MapEntry<String, int>> displayEntries = sortedEntries;
+    if (_searchQuery.isNotEmpty) {
+      displayEntries = sortedEntries.where((entry) => _formatToDisplay(entry.key).toLowerCase().contains(_searchQuery)).toList();
+    }
 
     return ListView(
       padding: const EdgeInsets.all(30),
@@ -527,7 +595,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         Container(
           padding: const EdgeInsets.all(30),
           decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF312E81), Color(0xFF4F46E5)]), // Biru/Indigo Gelap
+              gradient: const LinearGradient(colors: [Color(0xFF312E81), Color(0xFF4F46E5)]),
               borderRadius: BorderRadius.circular(20),
               boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))]
           ),
@@ -556,25 +624,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
               const SizedBox(height: 40),
 
-              // Bar Chart dengan Bulan
               SizedBox(
-                height: 150, // 🚀 Besarkan saiz canvas ni
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(12, (index) => Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Container(
-                          width: 35,
-                          // 🚀 Kurangkan formula ketinggian supaya tak tersembul
-                          height: 30.0 + (index * 6),
-                          decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(4))
-                      ),
-                      const SizedBox(height: 8),
-                      Text(months[index], style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600))
-                    ],
-                  )),
+                height: 150,
+                child: Builder(
+                    builder: (context) {
+                      int maxHits = _monthlyHits.reduce((a, b) => a > b ? a : b);
+                      if (maxHits == 0) maxHits = 1;
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(12, (index) {
+                          int hits = _monthlyHits[index];
+                          double barHeight = (hits / maxHits) * 100.0 + 5.0;
+
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Tooltip(
+                                message: "$hits selections",
+                                child: Container(
+                                    width: 35,
+                                    height: barHeight,
+                                    decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(4))
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(months[index], style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600))
+                            ],
+                          );
+                        }),
+                      );
+                    }
                 ),
               )
             ],
@@ -582,7 +663,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         const SizedBox(height: 24),
 
-        // 🚀 TIGA KAD STATISTIK COMPACT
         Row(
           children: [
             _buildStatCard("Active Patients", _totalActivePatients.toString(), Icons.people_outline, Colors.indigo.shade400, _patientTrendText, _patientTrendColor, _patientTrendBg),
@@ -621,42 +701,49 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-              ...List.generate(sortedEntries.length > 5 ? 5 : sortedEntries.length, (index) {
-                var entry = sortedEntries[index];
-                Color rankColor = index == 0 ? Colors.amber : Colors.grey.shade100;
-                Color rankTextColor = index == 0 ? Colors.white : Colors.blueGrey.shade600;
 
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.grey.shade200),
-                      borderRadius: BorderRadius.circular(12)
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(backgroundColor: rankColor, radius: 18, child: Text('${index + 1}', style: TextStyle(fontWeight: FontWeight.bold, color: rankTextColor, fontSize: 14))),
-                      const SizedBox(width: 16),
-                      Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(_formatToDisplay(entry.key), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
-                              const SizedBox(height: 2),
-                              Text("Ecosystem Data", style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
-                            ],
-                          )
-                      ),
-                      Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(color: const Color(0xFFE6F4EA), borderRadius: BorderRadius.circular(16)),
-                          child: Text('${entry.value} Hits', style: const TextStyle(color: Color(0xFF0D652D), fontWeight: FontWeight.bold, fontSize: 12))
-                      ),
-                    ],
-                  ),
-                );
-              }),
+              if (displayEntries.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: Center(child: Text("No pictograms found for this search.", style: TextStyle(color: Colors.grey))),
+                )
+              else
+                ...List.generate(displayEntries.length > 5 ? 5 : displayEntries.length, (index) {
+                  var entry = displayEntries[index];
+                  Color rankColor = index == 0 ? Colors.amber : Colors.grey.shade100;
+                  Color rankTextColor = index == 0 ? Colors.white : Colors.blueGrey.shade600;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.grey.shade200),
+                        borderRadius: BorderRadius.circular(12)
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(backgroundColor: rankColor, radius: 18, child: Text('${index + 1}', style: TextStyle(fontWeight: FontWeight.bold, color: rankTextColor, fontSize: 14))),
+                        const SizedBox(width: 16),
+                        Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(_formatToDisplay(entry.key), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
+                                const SizedBox(height: 2),
+                                Text("Ecosystem Data", style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                              ],
+                            )
+                        ),
+                        Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(color: const Color(0xFFE6F4EA), borderRadius: BorderRadius.circular(16)),
+                            child: Text('${entry.value} Hits', style: const TextStyle(color: Color(0xFF0D652D), fontWeight: FontWeight.bold, fontSize: 12))
+                        ),
+                      ],
+                    ),
+                  );
+                }),
             ],
           ),
         )
@@ -724,7 +811,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 📦 LEFT CARD
                   Expanded(
                     flex: 5,
                     child: Container(
@@ -792,7 +878,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                   const SizedBox(width: 30),
 
-                  // 📦 RIGHT CARD
                   Expanded(
                     flex: 4,
                     child: Container(
@@ -954,7 +1039,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF2E236C)));
 
-        final docs = snapshot.data!.docs;
+        var docs = snapshot.data!.docs;
+
+        // 🚀 LITAR PENAPISAN SEARCH UNTUK SUPPORT TICKETS
+        if (_searchQuery.isNotEmpty) {
+          docs = docs.where((doc) {
+            var data = doc.data() as Map<String, dynamic>;
+            String email = (data['user_email'] ?? '').toString().toLowerCase();
+            String msg = (data['message'] ?? '').toString().toLowerCase();
+            return email.contains(_searchQuery) || msg.contains(_searchQuery);
+          }).toList();
+        }
+
         int pendingCount = docs.where((d) => (d.data() as Map<String, dynamic>)['status'] != 'RESOLVED').length;
 
         return ListView(
@@ -1005,84 +1101,90 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
 
-            ...docs.map((doc) {
-              var data = doc.data() as Map<String, dynamic>;
-              bool isResolved = data['status'] == 'RESOLVED';
-              String timeAgo = _getTimeAgo(data['timestamp'] as Timestamp?);
+            if (docs.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(20.0),
+                child: Center(child: Text("No tickets found matching your search.", style: TextStyle(color: Colors.grey))),
+              )
+            else
+              ...docs.map((doc) {
+                var data = doc.data() as Map<String, dynamic>;
+                bool isResolved = data['status'] == 'RESOLVED';
+                String timeAgo = _getTimeAgo(data['timestamp'] as Timestamp?);
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                    color: isResolved ? const Color(0xFFF0FDF4) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: isResolved ? const Color(0xFFBBF7D0) : Colors.grey.shade200, width: 1.5),
-                    boxShadow: [if (!isResolved) BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                          color: isResolved ? Colors.green.shade100 : Colors.orange.shade50,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: isResolved ? Colors.green.shade300 : Colors.transparent)
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                      color: isResolved ? const Color(0xFFF0FDF4) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isResolved ? const Color(0xFFBBF7D0) : Colors.grey.shade200, width: 1.5),
+                      boxShadow: [if (!isResolved) BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                            color: isResolved ? Colors.green.shade100 : Colors.orange.shade50,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: isResolved ? Colors.green.shade300 : Colors.transparent)
+                        ),
+                        child: Icon(
+                            isResolved ? Icons.check_circle_outline : Icons.access_time_rounded,
+                            color: isResolved ? Colors.green.shade700 : Colors.orange.shade600,
+                            size: 24
+                        ),
                       ),
-                      child: Icon(
-                          isResolved ? Icons.check_circle_outline : Icons.access_time_rounded,
-                          color: isResolved ? Colors.green.shade700 : Colors.orange.shade600,
-                          size: 24
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.email_outlined, size: 16, color: Colors.grey.shade500),
-                              const SizedBox(width: 6),
-                              Text(data['user_email'] ?? 'Unknown User', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
-                              const SizedBox(width: 8),
-                              Text("•", style: TextStyle(color: Colors.grey.shade400)),
-                              const SizedBox(width: 8),
-                              Text(timeAgo, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
-
-                              if (isResolved) ...[
-                                const SizedBox(width: 12),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(color: const Color(0xFF166534), borderRadius: BorderRadius.circular(12)),
-                                  child: const Text("RESOLVED", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.5)),
-                                ),
-                              ]
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(data['message'] ?? '', style: const TextStyle(color: Color(0xFF475569), fontSize: 14, height: 1.4)),
-                        ],
-                      ),
-                    ),
-                    if (!isResolved) ...[
                       const SizedBox(width: 20),
-                      ElevatedButton(
-                          onPressed: () => doc.reference.update({'status': 'RESOLVED'}),
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2E236C),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)
-                          ),
-                          child: const Text("Resolve", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.email_outlined, size: 16, color: Colors.grey.shade500),
+                                const SizedBox(width: 6),
+                                Text(data['user_email'] ?? 'Unknown User', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
+                                const SizedBox(width: 8),
+                                Text("•", style: TextStyle(color: Colors.grey.shade400)),
+                                const SizedBox(width: 8),
+                                Text(timeAgo, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+
+                                if (isResolved) ...[
+                                  const SizedBox(width: 12),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(color: const Color(0xFF166534), borderRadius: BorderRadius.circular(12)),
+                                    child: const Text("RESOLVED", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.5)),
+                                  ),
+                                ]
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(data['message'] ?? '', style: const TextStyle(color: Color(0xFF475569), fontSize: 14, height: 1.4)),
+                          ],
+                        ),
                       ),
-                    ]
-                  ],
-                ),
-              );
-            }),
+                      if (!isResolved) ...[
+                        const SizedBox(width: 20),
+                        ElevatedButton(
+                            onPressed: () => doc.reference.update({'status': 'RESOLVED'}),
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2E236C),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)
+                            ),
+                            child: const Text("Resolve", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))
+                        ),
+                      ]
+                    ],
+                  ),
+                );
+              }),
           ],
         );
       },
@@ -1090,7 +1192,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   // =======================================================
-  // ⚙️ TAB 4: SYSTEM CONFIG (STYLE V0 TEPAT & BERFUNGSI)
+  // ⚙️ TAB 4: SYSTEM CONFIG
   // =======================================================
   Widget _buildConfigTab() {
     return StreamBuilder<DocumentSnapshot>(
@@ -1098,13 +1200,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF2E236C)));
 
-        // J.A.R.V.I.S: Tarik data config dari Firebase
         var data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
 
         return ListView(
           padding: const EdgeInsets.all(30),
           children: [
-            // 📦 KAD 1: KILL SWITCHES
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -1138,7 +1238,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
                     child: Column(
                       children: [
-                        // 🔴 Suis 1: Maintenance Mode
                         SwitchListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                           title: const Text("Maintenance Mode", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
@@ -1154,19 +1253,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
                               child: Icon(Icons.gpp_maybe_rounded, color: Colors.grey.shade500, size: 20)
                           ),
-                          activeColor: const Color(0xFF2E236C), // Biru gelap ikut tema
+                          activeColor: const Color(0xFF2E236C),
                           value: data['maintenance_mode'] ?? false,
                           onChanged: (v) => FirebaseFirestore.instance.collection('system_configs').doc('general').set({'maintenance_mode': v}, SetOptions(merge: true)),
                         ),
                         const Divider(height: 1, color: Colors.black12),
-
-                        // 🟣 Suis 2: Allow New Sign-ups
                         SwitchListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                           title: const Text("Allow New Sign-ups", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
                           subtitle: Text("Permit new clinics to register accounts.", style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-                          activeColor: const Color(0xFF4F46E5), // Indigo terang
-                          value: data['allow_signups'] ?? true, // Standard on
+                          activeColor: const Color(0xFF4F46E5),
+                          value: data['allow_signups'] ?? true,
                           onChanged: (v) => FirebaseFirestore.instance.collection('system_configs').doc('general').set({'allow_signups': v}, SetOptions(merge: true)),
                         ),
                       ],
@@ -1175,10 +1272,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ],
               ),
             ),
-
             const SizedBox(height: 30),
-
-            // 📦 KAD 2: GLOBAL ANNOUNCEMENT
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -1210,11 +1304,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           )
                         ],
                       ),
-
-                      // 🚀 Butang Edit yang panggil Litar Dialog
                       OutlinedButton.icon(
                         onPressed: () {
-                          // Litar untuk buka kotak edit
                           TextEditingController announceCtrl = TextEditingController(text: data['announcement_text'] ?? '');
                           showDialog(
                               context: context,
@@ -1245,7 +1336,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   ),
                                   ElevatedButton(
                                     onPressed: () {
-                                      // Tembak data baru ke Firebase
                                       FirebaseFirestore.instance.collection('system_configs').doc('general').set({
                                         'announcement_text': announceCtrl.text.trim()
                                       }, SetOptions(merge: true));
@@ -1268,8 +1358,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
-
-                  // 🚀 Kotak Paparan Announcement (Kuning sebijik V0)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

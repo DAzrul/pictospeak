@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart'; // 🚨 J.A.R.V.I.S: Wajib untuk check
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // 🚀 J.A.R.V.I.S: Import Wajib FCM
+import 'package:cloud_firestore/cloud_firestore.dart'; // 🚀 Wajib untuk litar Diktator baca database!
 
 import 'core/services/fcm_service.dart';
 import 'firebase_options.dart';
@@ -12,6 +13,9 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/splash_screen.dart';
 import 'features/admin/admin_dashboard_screen.dart'; // 🚨 Pastikan path ni betul
 import 'core/services/sync_service.dart';
+
+// 🚀 J.A.R.V.I.S: Wajib import skrin maintenance kau! (Periksa path ni kalau salah)
+import 'features/auth/maintenance_screen.dart';
 
 // =========================================================
 // 🚨 J.A.R.V.I.S GHOST PROTOCOL MARK II: BACKGROUND HANDLER
@@ -57,6 +61,33 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'PictoSpeak',
       theme: AppTheme.lightTheme,
+
+      // =========================================================
+      // 🚀 LITAR DIKTATOR J.A.R.V.I.S (GLOBAL MAINTENANCE OVERRIDE)
+      // =========================================================
+      builder: (context, child) {
+        // 🚨 VVIP BYPASS: Kalau bukak kat Web (Admin), jangan block!
+        // Nanti Admin sendiri terkunci dari Dashboard nak off suis macam mana babi 😂
+        if (kIsWeb) return child!;
+
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance.collection('system_configs').doc('general').snapshots(),
+          builder: (context, snapshot) {
+            // Intip secara live dari bumbung app
+            if (snapshot.hasData && snapshot.data!.exists) {
+              var data = snapshot.data!.data() as Map<String, dynamic>;
+              bool isMaintenance = data['maintenance_mode'] ?? false;
+
+              // Kalau admin petik suis ON, tendang app mobile masuk MaintenanceScreen!
+              if (isMaintenance) {
+                return const MaintenanceScreen();
+              }
+            }
+            // Kalau OFF, app jalan macam biasa
+            return child!;
+          },
+        );
+      },
 
       // 🚨 LOGIK DUA ALAM (HYBRID ROUTING)
       // Kalau kat Browser -> Terus ke Admin Dashboard

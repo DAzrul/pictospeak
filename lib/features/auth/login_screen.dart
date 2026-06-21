@@ -28,7 +28,21 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _checkSavedBiometric(); // 🚀 Panggil fungsi baharu
+    _checkExistingSession(); // 🚀 J.A.R.V.I.S: Litar intip sesi hidup!
+    _checkSavedBiometric();
+  }
+
+  // =========================================================
+  // 🚀 LITAR DEWA: AUTO-BYPASS KALAU FIREBASE MASIH HIDUP
+  // =========================================================
+  void _checkExistingSession() {
+    // Kalau user guna anak panah Swap Roles, Firebase dia MASIH HIDUP!
+    if (FirebaseAuth.instance.currentUser != null) {
+      print("J.A.R.V.I.S: Sesi Firebase masih aktif! Melangkau borang log masuk...");
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigateToDashboard();
+      });
+    }
   }
 
   void _checkSavedBiometric() async {
@@ -76,6 +90,13 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
+      print("🚨 J.A.R.V.I.S: Mencuci Cache Google sebelum login untuk pastikan prompt pilihan e-mel keluar...");
+
+      // 🚀 Paksa putus sesi Google yang tengah "tergantung"
+      await _authService.signOut(forceGoogleDisconnect: true);
+
+      print("J.A.R.V.I.S: Cache dicuci. Memulakan litar Google Sign-In yang bersih...");
+
       final user = await _authService.signInWithGoogle();
 
       if (user != null) {
@@ -153,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
+                        color: Colors.black.withOpacity(0.03),
                         blurRadius: 20, offset: const Offset(0, 10)
                     )
                   ],
@@ -229,12 +250,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 🚀 J.A.R.V.I.S: Tarik naik atas sikit biar nampak rapat
               const SizedBox(height: 16),
 
               _buildSignUpLink(),
 
-              // 🚀 J.A.R.V.I.S: Ruang bernafas kat bawah sekali supaya tak langgar bucu fon
               const SizedBox(height: 24),
             ],
           ),
@@ -243,7 +262,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // --- REPAIRED LOGO (NO MORE CACAT) ---
   Widget _buildHeader() {
     return Column(
       children: [
@@ -254,13 +272,13 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                  color: AppTheme.primaryBlue.withValues(alpha: 0.15),
+                  color: AppTheme.primaryBlue.withOpacity(0.15),
                   blurRadius: 25, offset: const Offset(0, 12)
               )
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(12), // Jarakkan logo dari border sikit
+            padding: const EdgeInsets.all(12),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(18),
               child: Image.asset(
@@ -277,7 +295,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Email Field Helper
   Widget _buildTextField(TextEditingController controller, String label, IconData icon, bool isPassword) {
     return TextFormField(
       controller: controller,
@@ -292,7 +309,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // 🚨 J.A.R.V.I.S: Password field yang dah disumbat Biometric icon
   Widget _buildPasswordField() {
     return TextFormField(
       controller: _passwordController,
@@ -307,7 +323,6 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icon(_obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.grey, size: 20),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
-            // 🚨 J.A.R.V.I.S: Menggunakan variable status biometrik universal terbaharu!
             if (_hasSavedBiometric)
               IconButton(
                 icon: const Icon(Icons.fingerprint_rounded, color: AppTheme.primaryBlue, size: 24),

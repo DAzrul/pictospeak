@@ -1,4 +1,6 @@
+import 'dart:async'; // 🚀 WAJIB UNTUK STREAM SUBSCRIPTION
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // 🚀 WAJIB UNTUK SEDUT DATA FIREBASE
 import '../../core/theme/app_theme.dart';
 import '../caregiver/caregiver_dashboard.dart';
 import 'services/auth_service.dart';
@@ -12,7 +14,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _nameController = TextEditingController(); // 🚀 TAMBAH CONTROLLER NAMA
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -21,12 +23,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  // 🚀 LITAR PENGAWAL KESELAMATAN J.A.R.V.I.S
+  bool _allowSignups = true; // Default ON
+  StreamSubscription<DocumentSnapshot>? _configSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // 🚀 Litar Intip "Allow New Sign-ups" secara live!
+    _configSubscription = FirebaseFirestore.instance.collection('system_configs').doc('general').snapshots().listen((doc) {
+      if (doc.exists && mounted) {
+        setState(() {
+          _allowSignups = doc.data()?['allow_signups'] ?? true;
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _configSubscription?.cancel(); // 🚀 WAJIB TUTUP LITAR SUPAYA TAK BOCOR MEMORI
     super.dispose();
   }
 
@@ -56,7 +76,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 🚀 HANTAR NAMA SEKALI KE AUTH SERVICE
       final user = await _authService.registerCaregiver(name, email, password);
       if (user != null) {
         _showSnackBar('Registration successful! Please set up your security PIN.', Colors.green);
@@ -79,8 +98,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       print("🚨 J.A.R.V.I.S: Disconnecting any active sessions to prevent overlap...");
-
-      // 🚀 Panggil fungsi pemusnahan secara paksa (forceGoogleDisconnect: true)
       await _authService.signOut(forceGoogleDisconnect: true);
 
       print("J.A.R.V.I.S: Initiating clean Google Sign-In circuit...");
@@ -140,7 +157,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 20, offset: const Offset(0, 10))
+                    BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, 10))
                   ],
                 ),
                 child: Column(
@@ -151,10 +168,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Text('Create an account to start monitoring patients.', style: TextStyle(color: Colors.blueGrey[400], fontSize: 13)),
                     const SizedBox(height: 24),
 
-                    // 🚀 KOTAK NAMA BARU
                     _buildTextField(_nameController, 'Full Name', Icons.person_outline, false),
                     const SizedBox(height: 16),
-
                     _buildTextField(_emailController, 'Email', Icons.email_outlined, false),
                     const SizedBox(height: 16),
                     _buildTextField(_passwordController, 'Password', Icons.lock_outline_rounded, true),
@@ -163,21 +178,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                     const SizedBox(height: 24),
 
-                    // BUTANG DAFTAR MANUAL
+                    // 🚀 BUTANG DAFTAR MANUAL (LITAR KILL SWITCH)
                     SizedBox(
                       width: double.infinity,
                       height: 58,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _handleRegister,
+                        onPressed: _isLoading ? null : () {
+                          // Tembak litar pengehadan!
+                          if (!_allowSignups) {
+                            _showSnackBar("Pendaftaran akaun baru ditutup oleh pihak pentadbir.", Colors.redAccent);
+                            return;
+                          }
+                          _handleRegister();
+                        },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryBlue,
+                          // Kalau switch off, tukar butang jadi kelabu mati
+                          backgroundColor: _allowSignups ? AppTheme.primaryBlue : Colors.grey.shade400,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
                         child: _isLoading
                             ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text('CREATE ACCOUNT', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                            : Text(
+                            _allowSignups ? 'CREATE ACCOUNT' : 'REGISTRATION CLOSED',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1)
+                        ),
                       ),
                     ),
 
@@ -197,14 +223,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                     const SizedBox(height: 20),
 
-                    // BUTANG GOOGLE
+                    // 🚀 BUTANG GOOGLE (LITAR KILL SWITCH)
                     SizedBox(
                       width: double.infinity,
                       height: 58,
                       child: OutlinedButton(
-                        onPressed: _isLoading ? null : _handleGoogleRegister,
+                        onPressed: _isLoading ? null : () {
+                          // Tembak litar pengehadan Google!
+                          if (!_allowSignups) {
+                            _showSnackBar("Pendaftaran akaun baru ditutup oleh pihak pentadbir.", Colors.redAccent);
+                            return;
+                          }
+                          _handleGoogleRegister();
+                        },
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: Colors.grey.shade200),
+                          backgroundColor: _allowSignups ? Colors.transparent : Colors.grey.shade100, // Matikan latar belakang sikit
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                         child: Row(
@@ -213,10 +247,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             Image.asset(
                               'assets/images/google_logo.png',
                               height: 22,
+                              color: _allowSignups ? null : Colors.grey, // 🚀 Matikan warna logo Google jadi hitam putih
                               errorBuilder: (context, error, stackTrace) => const Icon(Icons.g_mobiledata_rounded, color: Colors.red),
                             ),
                             const SizedBox(width: 12),
-                            const Text('Sign up with Google', style: TextStyle(color: Color(0xFF475569), fontWeight: FontWeight.w600)),
+                            Text('Sign up with Google', style: TextStyle(color: _allowSignups ? const Color(0xFF475569) : Colors.grey.shade500, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -246,7 +281,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(25),
             boxShadow: [
-              BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 10))
+              BoxShadow(color: AppTheme.primaryBlue.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10))
             ],
           ),
           child: Padding(
@@ -267,17 +302,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return TextFormField(
       controller: controller,
       obscureText: isPassword && _obscurePassword,
+      // Kalau sistem tutup pendaftaran, kotak form auto mati
+      enabled: _allowSignups,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: AppTheme.primaryBlue, size: 20),
+        prefixIcon: Icon(icon, color: _allowSignups ? AppTheme.primaryBlue : Colors.grey, size: 20),
         suffixIcon: isPassword ? IconButton(
           icon: Icon(_obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.grey, size: 20),
           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
         ) : null,
         filled: true,
-        fillColor: const Color(0xFFF8FAFC),
+        fillColor: _allowSignups ? const Color(0xFFF8FAFC) : Colors.grey.shade100,
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade100)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 1.5)),
+        disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade200)),
       ),
     );
   }
