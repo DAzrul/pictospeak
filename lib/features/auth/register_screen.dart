@@ -80,9 +80,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       print("🚨 J.A.R.V.I.S: Disconnecting any active sessions to prevent overlap...");
 
-      // 🚀 LANGKAH 1: Paksa sistem log keluar sepenuhnya daripada Firebase dan Google
-      // untuk memastikan prompt pemilihan akaun Google yang bersih akan keluar.
-      await _authService.signOut();
+      // 🚀 Panggil fungsi pemusnahan secara paksa (forceGoogleDisconnect: true)
+      await _authService.signOut(forceGoogleDisconnect: true);
 
       print("J.A.R.V.I.S: Initiating clean Google Sign-In circuit...");
       final user = await _authService.signInWithGoogle();

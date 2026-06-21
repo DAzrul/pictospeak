@@ -188,6 +188,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     if (itemIds.any((id) => ['sad', 'angry', 'pain', 'dizzy', 'noisy'].contains(id))) mood = "Negative";
 
     try {
+      // 1. Simpan Sejarah Ayat Penuh (Sedia ada)
       await FirebaseFirestore.instance
           .collection('caregivers')
           .doc(user.uid)
@@ -201,6 +202,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+      // 2. COP PESAKIT AKTIF - last_active (Sedia ada)
       await FirebaseFirestore.instance
           .collection('caregivers')
           .doc(user.uid)
@@ -208,7 +210,10 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           .doc(patientId)
           .update({'last_active': FieldValue.serverTimestamp()});
 
+      // 🚀 LOOP UNTUK SETIAP PIKTOGRAM YANG DITEKAN
       for (String id in itemIds) {
+
+        // 3. UPDATE PAPAN MARKAH - global_analytics (Sedia ada)
         await FirebaseFirestore.instance
             .collection('global_analytics')
             .doc(id)
@@ -217,9 +222,22 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           'total_usage': FieldValue.increment(1),
           'last_triggered': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        // 4. 🚀 LITAR BARU: TULIS BUKU SEJARAH - usage_logs 🚀
+        // Ini yang Admin Dashboard kau nak sedut untuk kira Trend Bulanan!
+        await FirebaseFirestore.instance.collection('usage_logs').add({
+          'pic_id': id,
+          'patient_uid': patientId,
+          'caregiver_uid': user.uid,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
       }
+
+      debugPrint("✅ J.A.R.V.I.S: Telemetry untuk [$fullSentence] berjaya ditembak ke semua pangkalan data!");
+
     } catch (e) {
-      print("🚨 J.A.R.V.I.S ERROR: Tempatan terbakar masa nak save -> $e");
+      debugPrint("🚨 J.A.R.V.I.S ERROR: Tempatan terbakar masa nak save -> $e");
     }
   }
 

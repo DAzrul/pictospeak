@@ -243,20 +243,24 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 10. PROTOKOL PEMUSNAHAN (LOGOUT TOTAL) - VERSI SELAMAT
+  // 10. PROTOKOL PEMUSNAHAN (LOGOUT TOTAL) - VERSI PINTAR
   // ---------------------------------------------------------
-    Future<void> signOut() async {
-      try {
-        // 🚀 J.A.R.V.I.S: JANGAN panggil _googleSignIn.signOut() kat sini!
-        // Kita cuma keluar dari Firebase session sahaja.
-        // Ini biar jambatan Google kat phone tu 'suam-suam kuku' untuk silent login nanti.
-        await _auth.signOut();
+  Future<void> signOut({bool forceGoogleDisconnect = false}) async {
+    try {
+      await _auth.signOut();
 
+      // 🚀 Kalau forceGoogleDisconnect == true, kita cantas terus jambatan Google!
+      // Ini wajib dipanggil kat RegisterScreen supaya dia tak auto-login akaun lama.
+      if (forceGoogleDisconnect) {
+        await _googleSignIn.signOut();
+        print("J.A.R.V.I.S: Firebase & Google session dimusnahkan secara paksa!");
+      } else {
         print("J.A.R.V.I.S: Firebase session ditamatkan. Jambatan Google dikekalkan untuk biometrik.");
-      } catch (e) {
-        print("🚨 Ralat masa logout: $e");
       }
+    } catch (e) {
+      print("🚨 Ralat masa logout: $e");
     }
+  }
 
   // ---------------------------------------------------------
   // 🚀 11. [LITAR BARU] SEDUT SENARAI PESAKIT UNTUK DASHBOARD
