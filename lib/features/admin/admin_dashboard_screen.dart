@@ -107,7 +107,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   // =========================================================================
-  // 🚀 LITAR SIMULASI PINTAR V4.0 (GABUNG ALL LOGS + REALTIME WEEKLY REPORTS)
+  // 🚀 ENJIN SIMULASI DEWA V5.0 (DEEP CHRONO + WEEKLY REPORTS + SUPPORT TICKETS)
   // =========================================================================
   Future<void> _generateSimulationData() async {
     final firestore = FirebaseFirestore.instance;
@@ -121,7 +121,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             CircularProgressIndicator(color: Colors.purple),
             SizedBox(width: 20),
-            Expanded(child: Text("J.A.R.V.I.S: Menjana log harian & membina Laporan Mingguan (weekly_reports)... Usah tutup skrin!")),
+            Expanded(child: Text("J.A.R.V.I.S: Menjana log harian, Laporan Mingguan & Tiket Aduan merentas 7 BULAN ke belakang... Harap bersabar.")),
           ],
         ),
       ),
@@ -150,12 +150,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'cold', 'hot', 'family', 'rest', 'tv'
       ];
 
-      DateTime endDate = DateTime.now();
-      DateTime startDate = endDate.subtract(const Duration(days: 90));
-      int totalSessions = 0;
+      // 🚀 BANK AYAT ADUAN/TIKET PALSU
+      List<String> mockTickets = [
+        "Sistem agak perlahan bila buka waktu malam.",
+        "Boleh tak pihak admin tambah gambar Nasi Lemak dalam kategori makanan?",
+        "Bunyi siren SOS sangat membantu, terima kasih!",
+        "Macam mana nak tukar gambar profil pesakit ya?",
+        "Tolong masukkan ikon untuk 'Kerusi Roda'.",
+        "Sistem tiba-tiba tertutup sendiri kelmarin, mohon periksa.",
+        "Suara text-to-speech terlalu laju, adakah cara nak perlahankan?",
+        "Saya nak cadangkan tambah kategori baru khas untuk Waktu Sembahyang.",
+      ];
 
-      // 🚀 LITAR MEMORI MINGGUAN (Untuk simpan data aggregation sebelum tolak ke Firebase)
-      // Key: patient_uid, Value: Map data prestasi mingguan
+      // 🚀 SETTING 7 BULAN (210 HARI KE BELAKANG)
+      DateTime endDate = DateTime.now();
+      DateTime startDate = endDate.subtract(const Duration(days: 210));
+      int totalSessions = 0;
+      int totalTickets = 0; // Kiraan tiket yang disuntik
+
       Map<String, Map<String, dynamic>> weeklyAccumulator = {};
       DateTime weekStart = startDate;
 
@@ -182,7 +194,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
 
         for (String id in items) {
-          // 🚀 1. TULIS KE USAGE_LOGS
           await firestore.collection('usage_logs').add({
             'pic_id': id,
             'patient_uid': patientUid,
@@ -190,7 +201,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             'timestamp': ts,
           });
 
-          // 🚀 2. TULIS KE GLOBAL_ANALYTICS (Kebal & Auto-Increment)
           await firestore.collection('global_analytics').doc(id).set({
             'pic_id': id,
             'total_usage': FieldValue.increment(1),
@@ -200,11 +210,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return mood;
       }
 
-      // 🚀 MERENTAS MASA 90 HARI
-      for (int i = 0; i <= 90; i++) {
+      // 🚀 LOOP UTURAN MASA MENCANAK (210 HARI)
+      for (int i = 0; i <= 210; i++) {
         DateTime currentDate = startDate.add(Duration(days: i));
 
-        // 🚀 SETIAP SEBULAN/7 HARI, KITA FLUSH DATA ACCUMULATOR JADI WEEKLY REPORT
+        // 🚀 LITAR JANA SUPPORT TICKETS (3% peluang sehari)
+        if (random.nextInt(100) < 3) {
+          DateTime ticketTime = currentDate.add(Duration(hours: random.nextInt(12) + 8, minutes: random.nextInt(50)));
+          String fakeEmail = "caregiver_${random.nextInt(99)}@klinik.com";
+          String fakeMessage = mockTickets[random.nextInt(mockTickets.length)];
+
+          // Kebanyakan tiket patut dah resolved, tapi kita simpan sikit PENDING
+          String fakeStatus = (random.nextInt(100) < 80) ? "RESOLVED" : "PENDING";
+
+          await firestore.collection('support_tickets').add({
+            'user_email': fakeEmail,
+            'message': fakeMessage,
+            'status': fakeStatus,
+            'timestamp': Timestamp.fromDate(ticketTime),
+          });
+          totalTickets++;
+        }
+
+        // JANA LAPORAN SETIAP GENAP TUKAR MINGGU (7 HARI)
         if (i > 0 && i % 7 == 0) {
           DateTime weekEnd = currentDate.subtract(const Duration(seconds: 1));
 
@@ -220,7 +248,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               if (pos > neg) overallMood = "Positive";
               if (neg > pos) overallMood = "Negative";
 
-              // 🚀 3. TULIS KE WEEKLY_REPORTS
               await firestore
                   .collection('caregivers').doc(userMeta['caregiver_uid'])
                   .collection('patients').doc(pId)
@@ -236,14 +263,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               });
             }
           }
-          weeklyAccumulator.clear(); // Cuci memori untuk minggu baru
+          weeklyAccumulator.clear();
           weekStart = currentDate;
         }
 
-        // 15% Kebarangkalian pesakit rehat/senyap (Selang-seli hari)
-        if (random.nextInt(100) < 15) continue;
+        // Kebarangkalian 25% "Hari Rehat"
+        if (random.nextInt(100) < 25) continue;
 
-        int dailySessions = random.nextInt(4) + 3; // 3 ke 6 ayat sehari
+        // Pesakit bercakap 3 ke 5 ayat sehari
+        int dailySessions = random.nextInt(3) + 3;
 
         for (int j = 0; j < dailySessions; j++) {
           DateTime exactTime = currentDate.add(Duration(hours: random.nextInt(12) + 8, minutes: random.nextInt(50)));
@@ -278,12 +306,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             String word = simulatedItems[k];
             currentSentence += (currentSentence.isEmpty ? word.toUpperCase() : " ${word.toUpperCase()}");
 
-            // Tembak log klik berperingkat
             finalSessionMood = await injectLog(chosenUser['caregiver_uid']!, pUid, currentSentence, simulatedItems.sublist(0, k + 1), timeCursor);
-            timeCursor = timeCursor.add(Duration(seconds: random.nextInt(3) + 1));
+            timeCursor = timeCursor.add(Duration(seconds: random.nextInt(2) + 1));
           }
 
-          // 🚀 ISI REKOD DALAM ACCUMULATOR MINGGUAN (Hanya ambil hasil butang PLAY akhir)
           if (!weeklyAccumulator.containsKey(pUid)) {
             weeklyAccumulator[pUid] = {'total_sentences': 0, 'positive': 0, 'negative': 0};
           }
@@ -295,7 +321,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       }
 
-      // Flush baki data minggu terakhir yang tertinggal
+      // Flush baki laporan terakhir
       for (var entry in weeklyAccumulator.entries) {
         String pId = entry.key;
         var stats = entry.value;
@@ -324,12 +350,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       }
 
-      await _logAdminActivity("Triggered fully-integrated simulation engine V4.0.");
+      await _logAdminActivity("Triggered 7-Month Deep Chrono Simulation Engine V5.0 (With Support Tickets).");
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("✅ SUKSES! $totalSessions Sesi disuntik. weekly_reports & global_analytics kini fully-loaded!"), backgroundColor: Colors.purple.shade600)
+            SnackBar(content: Text("✅ MAHESTIK! $totalSessions Sesi & $totalTickets Tiket Aduan merentas 7 BULAN berjaya disuntik!"), backgroundColor: Colors.purple.shade600)
         );
         _fetchGlobalAnalytics();
       }
@@ -832,7 +858,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text("Global Usage Trends", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                          SizedBox(height: 4), // ✅ TUKAR JADI SizedBox
+                          SizedBox(height: 4),
                           Text("Pictogram selections across all devices · last 12 months", style: TextStyle(color: Colors.white70, fontSize: 13)),
                         ],
                       ),
@@ -1627,7 +1653,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () => _generateSimulationData(),
                       icon: const Icon(Icons.bolt_rounded, color: Colors.amber, size: 22),
-                      label: const Text("GENERATE 90-DAY ECOSYSTEM DATA", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14, letterSpacing: 0.5)),
+                      label: const Text("GENERATE 210-DAY ECOSYSTEM DATA", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14, letterSpacing: 0.5)),
                       style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.purple.shade700,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
