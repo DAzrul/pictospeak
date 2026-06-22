@@ -23,6 +23,9 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   final List<String> _folderHistory = [];
   final List<Map<String, dynamic>> _selectedItems = [];
 
+  // 1. Tambah variable ni kat dalam class _QuickNeedsScreenState
+  String _patientName = "Loading...";
+  String? _patientImageUrl;
 
   List<Map<String, dynamic>> _mergedData = [];
   late List<Map<String, dynamic>> _staticData;
@@ -107,10 +110,33 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadPatientInfo(); // 🚀 Panggil litar sedut info
     _initStaticDatabase();
     _syncWithFirebase();
     _applyStoredSettings();
     _buildPersonalizedBrain();
+  }
+
+  // 3. Litar Sedut Info Pesakit
+  Future<void> _loadPatientInfo() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? patientId = prefs.getString('patient_id');
+
+    if (patientId != null) {
+      // Sedut dari Firestore untuk dapatkan URL gambar paling terkini
+      var doc = await FirebaseFirestore.instance.collection('caregivers')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .collection('patients')
+          .doc(patientId)
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          _patientName = doc.data()?['name'] ?? "Pesakit";
+          _patientImageUrl = doc.data()?['profile_image_url'];
+        });
+      }
+    }
   }
 
   Future<void> _applyStoredSettings() async {
@@ -501,8 +527,10 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
 
     return Scaffold(
       backgroundColor: _isLowSensory ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
+      // 4. Update AppBar kau (Ganti AppBar asal dengan ni)
       appBar: AppBar(
-        backgroundColor: Colors.white, elevation: 0,
+        backgroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
           icon: Icon(_currentFolder != null ? Icons.arrow_back_ios_new : Icons.power_settings_new,
               color: _currentFolder != null ? AppTheme.textDark : Colors.redAccent),
@@ -520,8 +548,27 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
             }
           },
         ),
-        title: Text(_currentFolder != null ? _currentFolder!.replaceAll('_', ' ').toUpperCase() : 'QUICK NEEDS', style: const TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.bold)),
-        centerTitle: true,
+        title: Row(
+          children: [
+            // 🚀 Gambar Profil Kecil (Mini Avatar)
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: AppTheme.primaryBlue.withOpacity(0.2),
+              backgroundImage: _patientImageUrl != null ? NetworkImage(_patientImageUrl!) : null,
+              child: _patientImageUrl == null ? const Icon(Icons.person, size: 20, color: AppTheme.primaryBlue) : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_patientName, style: const TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Text("Quick Needs", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       body: SafeArea(
         child: Column(

@@ -556,8 +556,12 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
     );
   }
 
-  // --- KAD PESAKIT ---
+  // --- KAD PESAKIT (VERSION MARK 129 - WITH FAST TRACK & PROFILE PICT) ---
   Widget _buildPatientCard(Map<String, dynamic> data) {
+    // 🚀 LITAR INTIP GAMBAR
+    // Pastikan field ni sama nama dalam Firestore (tukar 'profile_url' kalau database kau simpan nama lain)
+    String? imageUrl = data['profile_url'];
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -583,13 +587,24 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
             padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
+                // 🚀 UI GAMBAR PROFIL PINTAR
                 Container(
                   height: 60, width: 60,
                   decoration: BoxDecoration(
                     color: AppTheme.primaryBlue.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(18),
+                    // Kalau ada gambar, dia tarik dari awan (NetworkImage)
+                    image: imageUrl != null && imageUrl.isNotEmpty
+                        ? DecorationImage(
+                        image: NetworkImage(imageUrl),
+                        fit: BoxFit.cover
+                    )
+                        : null,
                   ),
-                  child: const Icon(Icons.face_retouching_natural_rounded, color: AppTheme.primaryBlue, size: 30),
+                  // Kalau takde gambar, baru tunjuk icon asal
+                  child: (imageUrl == null || imageUrl.isEmpty)
+                      ? const Icon(Icons.face_retouching_natural_rounded, color: AppTheme.primaryBlue, size: 30)
+                      : null,
                 ),
                 const SizedBox(width: 16),
                 Expanded(

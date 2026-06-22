@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../core/theme/app_theme.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -25,7 +27,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _newMainController = TextEditingController();
   final _newSubController = TextEditingController();
 
-  // 🚀 LITAR SEARCH J.A.R.V.I.S
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
 
@@ -36,14 +37,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _isCreatingNewSub = false;
 
   List<String> _mainCategories = ['health', 'body', 'food_drinks', 'feelings', 'environment', 'hygiene'];
-  // 🚀 Enjin penyimpan anak-anak folder
   Map<String, Set<String>> _subCategories = {};
 
   Map<String, int> _globalPhraseFrequency = {};
   int _totalActivePatients = 0;
   int _totalSelections = 0;
 
-  // 🚀 Litar Trend Indicators
   String _patientTrendText = "+0.0%";
   Color _patientTrendColor = const Color(0xFF0D652D);
   Color _patientTrendBg = const Color(0xFFE6F4EA);
@@ -64,6 +63,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Uint8List? _webImageBytes;
   final ImagePicker _picker = ImagePicker();
 
+  List<int> _monthlyHits = List.generate(12, (_) => 0);
+
   @override
   void initState() {
     super.initState();
@@ -78,11 +79,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _labelMsController.dispose();
     _newMainController.dispose();
     _newSubController.dispose();
-    _searchController.dispose(); // 🚀 WAJIB DISPOSE
+    _searchController.dispose();
     super.dispose();
   }
 
-  // 🚀 Helper: Kira beza masa untuk paparkan "12m ago", "1h ago" kat Tiket
   String _getTimeAgo(Timestamp? timestamp) {
     if (timestamp == null) return "Just now";
     final diff = DateTime.now().difference(timestamp.toDate());
@@ -106,8 +106,241 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  // 🚀 Litar Tambahan Untuk Simpan Hits Bulanan (12 Bulan)
-  List<int> _monthlyHits = List.generate(12, (_) => 0);
+  // =========================================================================
+  // 🚀 LITAR SIMULASI PINTAR V4.0 (GABUNG ALL LOGS + REALTIME WEEKLY REPORTS)
+  // =========================================================================
+  Future<void> _generateSimulationData() async {
+    final firestore = FirebaseFirestore.instance;
+    final random = Random();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(color: Colors.purple),
+            SizedBox(width: 20),
+            Expanded(child: Text("J.A.R.V.I.S: Menjana log harian & membina Laporan Mingguan (weekly_reports)... Usah tutup skrin!")),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final patientSnap = await firestore.collectionGroup('patients').limit(5).get();
+
+      List<Map<String, String>> activePool = [];
+      for (var doc in patientSnap.docs) {
+        String caregiverId = doc.reference.parent.parent?.id ?? "SYSTEM_SIMULATED";
+        activePool.add({
+          'patient_uid': doc.id,
+          'caregiver_uid': caregiverId,
+        });
+      }
+
+      if (activePool.isEmpty) {
+        activePool.add({'patient_uid': 'sim_patient_01', 'caregiver_uid': 'sim_caregiver_01'});
+        activePool.add({'patient_uid': 'sim_patient_02', 'caregiver_uid': 'sim_caregiver_02'});
+      }
+
+      List<String> mockPics = [
+        'water', 'hungry', 'pain', 'toilet', 'happy', 'sad', 'medicine',
+        'tired', 'shower', 'pray', 'done', 'yes', 'no', 'dizzy', 'breathe',
+        'cold', 'hot', 'family', 'rest', 'tv'
+      ];
+
+      DateTime endDate = DateTime.now();
+      DateTime startDate = endDate.subtract(const Duration(days: 90));
+      int totalSessions = 0;
+
+      // 🚀 LITAR MEMORI MINGGUAN (Untuk simpan data aggregation sebelum tolak ke Firebase)
+      // Key: patient_uid, Value: Map data prestasi mingguan
+      Map<String, Map<String, dynamic>> weeklyAccumulator = {};
+      DateTime weekStart = startDate;
+
+      Future<String> injectLog(String caregiverUid, String patientUid, String sentence, List<String> items, DateTime time) async {
+        Timestamp ts = Timestamp.fromDate(time);
+        String mood = "Neutral";
+        if (items.any((id) => ['happy', 'yes', 'pray', 'done', 'family'].contains(id))) mood = "Positive";
+        if (items.any((id) => ['sad', 'angry', 'pain', 'dizzy', 'noisy', 'tired', 'no'].contains(id))) mood = "Negative";
+
+        if (caregiverUid != "SYSTEM_SIMULATED") {
+          await firestore
+              .collection('caregivers').doc(caregiverUid)
+              .collection('patients').doc(patientUid)
+              .collection('communication_logs').add({
+            'sentence': sentence,
+            'items': items,
+            'mood': mood,
+            'timestamp': ts,
+          });
+          await firestore
+              .collection('caregivers').doc(caregiverUid)
+              .collection('patients').doc(patientUid)
+              .update({'last_active': ts});
+        }
+
+        for (String id in items) {
+          // 🚀 1. TULIS KE USAGE_LOGS
+          await firestore.collection('usage_logs').add({
+            'pic_id': id,
+            'patient_uid': patientUid,
+            'caregiver_uid': caregiverUid,
+            'timestamp': ts,
+          });
+
+          // 🚀 2. TULIS KE GLOBAL_ANALYTICS (Kebal & Auto-Increment)
+          await firestore.collection('global_analytics').doc(id).set({
+            'pic_id': id,
+            'total_usage': FieldValue.increment(1),
+            'last_triggered': ts,
+          }, SetOptions(merge: true));
+        }
+        return mood;
+      }
+
+      // 🚀 MERENTAS MASA 90 HARI
+      for (int i = 0; i <= 90; i++) {
+        DateTime currentDate = startDate.add(Duration(days: i));
+
+        // 🚀 SETIAP SEBULAN/7 HARI, KITA FLUSH DATA ACCUMULATOR JADI WEEKLY REPORT
+        if (i > 0 && i % 7 == 0) {
+          DateTime weekEnd = currentDate.subtract(const Duration(seconds: 1));
+
+          for (var entry in weeklyAccumulator.entries) {
+            String pId = entry.key;
+            var stats = entry.value;
+            var userMeta = activePool.firstWhere((p) => p['patient_uid'] == pId);
+
+            if (userMeta['caregiver_uid'] != "SYSTEM_SIMULATED") {
+              int pos = stats['positive'] ?? 0;
+              int neg = stats['negative'] ?? 0;
+              String overallMood = "Neutral";
+              if (pos > neg) overallMood = "Positive";
+              if (neg > pos) overallMood = "Negative";
+
+              // 🚀 3. TULIS KE WEEKLY_REPORTS
+              await firestore
+                  .collection('caregivers').doc(userMeta['caregiver_uid'])
+                  .collection('patients').doc(pId)
+                  .collection('weekly_reports').add({
+                'createdAt': Timestamp.fromDate(currentDate),
+                'negative_mood_count': neg,
+                'overall_mood': overallMood,
+                'positive_mood_count': pos,
+                'summary': "System Auto-Generated Weekly Report",
+                'total_sentences': stats['total_sentences'] ?? 0,
+                'week_start': Timestamp.fromDate(weekStart),
+                'week_end': Timestamp.fromDate(weekEnd),
+              });
+            }
+          }
+          weeklyAccumulator.clear(); // Cuci memori untuk minggu baru
+          weekStart = currentDate;
+        }
+
+        // 15% Kebarangkalian pesakit rehat/senyap (Selang-seli hari)
+        if (random.nextInt(100) < 15) continue;
+
+        int dailySessions = random.nextInt(4) + 3; // 3 ke 6 ayat sehari
+
+        for (int j = 0; j < dailySessions; j++) {
+          DateTime exactTime = currentDate.add(Duration(hours: random.nextInt(12) + 8, minutes: random.nextInt(50)));
+          var chosenUser = activePool[random.nextInt(activePool.length)];
+          String pUid = chosenUser['patient_uid']!;
+
+          bool isThreeWords = random.nextBool();
+          List<String> simulatedItems = [];
+
+          String firstWord = mockPics[random.nextInt(mockPics.length)];
+          simulatedItems.add(firstWord);
+
+          String secondWord = mockPics[random.nextInt(mockPics.length)];
+          while(secondWord == firstWord) {
+            secondWord = mockPics[random.nextInt(mockPics.length)];
+          }
+          simulatedItems.add(secondWord);
+
+          if (isThreeWords) {
+            String thirdWord = mockPics[random.nextInt(mockPics.length)];
+            while(thirdWord == firstWord || thirdWord == secondWord) {
+              thirdWord = mockPics[random.nextInt(mockPics.length)];
+            }
+            simulatedItems.add(thirdWord);
+          }
+
+          DateTime timeCursor = exactTime;
+          String currentSentence = "";
+          String finalSessionMood = "Neutral";
+
+          for (int k = 0; k < simulatedItems.length; k++) {
+            String word = simulatedItems[k];
+            currentSentence += (currentSentence.isEmpty ? word.toUpperCase() : " ${word.toUpperCase()}");
+
+            // Tembak log klik berperingkat
+            finalSessionMood = await injectLog(chosenUser['caregiver_uid']!, pUid, currentSentence, simulatedItems.sublist(0, k + 1), timeCursor);
+            timeCursor = timeCursor.add(Duration(seconds: random.nextInt(3) + 1));
+          }
+
+          // 🚀 ISI REKOD DALAM ACCUMULATOR MINGGUAN (Hanya ambil hasil butang PLAY akhir)
+          if (!weeklyAccumulator.containsKey(pUid)) {
+            weeklyAccumulator[pUid] = {'total_sentences': 0, 'positive': 0, 'negative': 0};
+          }
+          weeklyAccumulator[pUid]!['total_sentences'] = (weeklyAccumulator[pUid]!['total_sentences'] ?? 0) + 1;
+          if (finalSessionMood == "Positive") weeklyAccumulator[pUid]!['positive'] = (weeklyAccumulator[pUid]!['positive'] ?? 0) + 1;
+          if (finalSessionMood == "Negative") weeklyAccumulator[pUid]!['negative'] = (weeklyAccumulator[pUid]!['negative'] ?? 0) + 1;
+
+          totalSessions++;
+        }
+      }
+
+      // Flush baki data minggu terakhir yang tertinggal
+      for (var entry in weeklyAccumulator.entries) {
+        String pId = entry.key;
+        var stats = entry.value;
+        var userMeta = activePool.firstWhere((p) => p['patient_uid'] == pId);
+
+        if (userMeta['caregiver_uid'] != "SYSTEM_SIMULATED") {
+          int pos = stats['positive'] ?? 0;
+          int neg = stats['negative'] ?? 0;
+          String overallMood = "Neutral";
+          if (pos > neg) overallMood = "Positive";
+          if (neg > pos) overallMood = "Negative";
+
+          await firestore
+              .collection('caregivers').doc(userMeta['caregiver_uid'])
+              .collection('patients').doc(pId)
+              .collection('weekly_reports').add({
+            'createdAt': Timestamp.fromDate(DateTime.now()),
+            'negative_mood_count': neg,
+            'overall_mood': overallMood,
+            'positive_mood_count': pos,
+            'summary': "System Auto-Generated Weekly Report",
+            'total_sentences': stats['total_sentences'] ?? 0,
+            'week_start': Timestamp.fromDate(weekStart),
+            'week_end': Timestamp.fromDate(endDate),
+          });
+        }
+      }
+
+      await _logAdminActivity("Triggered fully-integrated simulation engine V4.0.");
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("✅ SUKSES! $totalSessions Sesi disuntik. weekly_reports & global_analytics kini fully-loaded!"), backgroundColor: Colors.purple.shade600)
+        );
+        _fetchGlobalAnalytics();
+      }
+
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("🚨 Litar terbakar: $e"), backgroundColor: Colors.red));
+      }
+    }
+  }
 
   Future<void> _fetchGlobalAnalytics() async {
     setState(() => _isLoadingAnalytics = true);
@@ -152,9 +385,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       } catch (e) { debugPrint("🚨 Ralat Trend Pesakit: $e"); }
 
-      // =======================================================
-      // 🚀 LITAR DEWA: KIRAAN TREND & GRAF BULANAN (REAL DATA)
-      // =======================================================
       int currentMonthClicks = 0, pastMonthClicks = 0;
       String sTrendText = "+0.0%";
       Color sTrendColor = const Color(0xFF0D652D), sTrendBg = const Color(0xFFE6F4EA);
@@ -368,7 +598,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       body: Row(
         children: [
-          // 👈 SIDEBAR
           Container(
             width: 250,
             color: const Color(0xFF1E1B4B),
@@ -402,17 +631,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                 const Spacer(),
                 const Divider(color: Colors.white12, height: 1),
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  leading: const CircleAvatar(backgroundColor: Colors.indigo, child: Text("AZ", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14))),
-                  title: const Text("Admin Root", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                  subtitle: const Text("Super User", style: TextStyle(color: Colors.indigoAccent, fontSize: 12)),
+                const ListTile(
+                  contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  leading: CircleAvatar(backgroundColor: Colors.indigo, child: Text("AZ", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14))),
+                  title: Text("Admin Root", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  subtitle: Text("Super User", style: TextStyle(color: Colors.indigoAccent, fontSize: 12)),
                 ),
               ],
             ),
           ),
 
-          // 👉 MAIN CONTENT
           Expanded(
             child: Column(
               children: [
@@ -432,7 +660,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                       Row(
                         children: [
-                          // 🚀 SEARCH BAR BERFUNGSI
                           Container(
                             width: 250,
                             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -454,7 +681,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                           const SizedBox(width: 16),
 
-                          // 🚀 NOTIFICATION BELL BERFUNGSI (LIVE BADGE DARI FIREBASE)
                           StreamBuilder<QuerySnapshot>(
                               stream: FirebaseFirestore.instance.collection('support_tickets').where('status', isEqualTo: 'PENDING').snapshots(),
                               builder: (context, snapshot) {
@@ -469,12 +695,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     isLabelVisible: pendingCount > 0,
                                     label: Text('$pendingCount', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
                                     backgroundColor: Colors.red.shade600,
-                                    alignment: const Alignment(0.6, -0.6), // Kedudukan titik merah
+                                    alignment: const Alignment(0.6, -0.6),
                                     child: IconButton(
                                       icon: const Icon(Icons.notifications_none, color: Colors.grey, size: 22),
                                       onPressed: () {
                                         if (pendingCount > 0) {
-                                          // 🚀 Kalau tekan loceng, auto lompat pergi Tab Support Tickets!
                                           setState(() {
                                             _selectedIndex = 2;
                                             _searchQuery = "";
@@ -515,7 +740,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       onTap: () {
         setState(() {
           _selectedIndex = index;
-          // Kosongkan search bar bila tukar tab supaya tak sangkut filter
           _searchQuery = "";
           _searchController.clear();
         });
@@ -574,15 +798,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  // =======================================================
-  // 📊 TAB 1: ANALYTICS
-  // =======================================================
   Widget _buildAnalyticsTab(List<MapEntry<String, int>> sortedEntries) {
     if (_isLoadingAnalytics) return const Center(child: CircularProgressIndicator(color: Colors.indigo));
 
     final List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-    // 🚀 LITAR PENAPISAN SEARCH UNTUK PICTOGRAMS
     List<MapEntry<String, int>> displayEntries = sortedEntries;
     if (_searchQuery.isNotEmpty) {
       displayEntries = sortedEntries.where((entry) => _formatToDisplay(entry.key).toLowerCase().contains(_searchQuery)).toList();
@@ -591,7 +811,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return ListView(
       padding: const EdgeInsets.all(30),
       children: [
-        // Hero Chart
         Container(
           padding: const EdgeInsets.all(30),
           decoration: BoxDecoration(
@@ -613,7 +832,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text("Global Usage Trends", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                          SizedBox(height: 4),
+                          SizedBox(height: 4), // ✅ TUKAR JADI SizedBox
                           Text("Pictogram selections across all devices · last 12 months", style: TextStyle(color: Colors.white70, fontSize: 13)),
                         ],
                       ),
@@ -674,7 +893,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         const SizedBox(height: 24),
 
-        // Top Performing Pictograms
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
@@ -789,9 +1007,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // =======================================================
-  // ☁️ TAB 2: CMS DEPLOYMENT
-  // =======================================================
   Widget _buildCmsTab() {
     List<String> dynamicSubFolders = ['none'];
     String currentMainKey = _formatToId(_selectedMainCategory);
@@ -1030,9 +1245,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // =======================================================
-  // 🎫 TAB 3: TICKETS
-  // =======================================================
   Widget _buildTicketsTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('support_tickets').orderBy('timestamp', descending: true).snapshots(),
@@ -1041,7 +1253,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
         var docs = snapshot.data!.docs;
 
-        // 🚀 LITAR PENAPISAN SEARCH UNTUK SUPPORT TICKETS
         if (_searchQuery.isNotEmpty) {
           docs = docs.where((doc) {
             var data = doc.data() as Map<String, dynamic>;
@@ -1191,9 +1402,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // =======================================================
-  // ⚙️ TAB 4: SYSTEM CONFIG
-  // =======================================================
   Widget _buildConfigTab() {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('system_configs').doc('general').snapshots(),
@@ -1273,6 +1481,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
             const SizedBox(height: 30),
+
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -1375,7 +1584,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   )
                 ],
               ),
-            )
+            ),
+            const SizedBox(height: 30),
+
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 10, offset: const Offset(0, 4))]
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
+                        child: Icon(Icons.science_rounded, color: Colors.purple.shade600, size: 20),
+                      ),
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Environment Simulation Tools", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                          Text("Generate artificial ecosystem metrics for testing", style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                        ],
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Butang di bawah akan menyuntik rekod log komunikasi rawak sepanjang 90 hari lepas ke dalam pangkalan data. Litar ini akan memetakan corak penggunaan mengikut profil pesakit sedia ada bagi menguji keupayaan carta trend Admin.",
+                    style: TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.5),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _generateSimulationData(),
+                      icon: const Icon(Icons.bolt_rounded, color: Colors.amber, size: 22),
+                      label: const Text("GENERATE 90-DAY ECOSYSTEM DATA", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14, letterSpacing: 0.5)),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple.shade700,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         );
       },
