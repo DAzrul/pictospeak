@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class PatientDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> patientData;
@@ -25,15 +26,25 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
   bool _isUploadingPic = false;
   bool _isGeneratingReport = false; // Loading state for report
 
+  // 🚀 LITAR VOICE COMMAND (CAREGIVER)
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
+  String _spokenText = "";
+
+  // 🧠 OTAK KAMUS DINAMIK KITA
+  Map<String, String> _dynamicKamus = {};
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _currentData = Map.from(widget.patientData);
 
-    // 🚀 LITAR NINJA J.A.R.V.I.S BERMULA DI SINI
-    // Dia akan jalan senyap-senyap kat belakang tabir bila skrin dibuka.
+    _speech = stt.SpeechToText(); // 🚀 Setup Mikrofon
     _autoCheckAndSaveWeeklyReport();
+
+    // 🚀 PANGGIL DIA KAT SINI!
+    _initDynamicDictionary();
   }
 
   // 🚀 Protocol: Auto-Generate & Save Weekly Report
@@ -111,6 +122,112 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
 
     } catch (e) {
       debugPrint("🚨 J.A.R.V.I.S Auto-Save Error: $e");
+    }
+  }
+
+  // 🚀 PROTOKOL: Sedut Label dari Firebase & Jadikan Kamus AI
+  Future<void> _initDynamicDictionary() async {
+    // 1. Masukkan kamus STATIK (Bawaan App) dulu
+    Map<String, String> baseKamus = {
+      // 🟢 BASIC / COMMANDS
+      'ya': 'yes', 'yes': 'yes', 'nak': 'yes', 'mau': 'yes', 'ok': 'yes',
+      'tak': 'no', 'tidak': 'no', 'no': 'no', 'dont': 'no', 'jangan': 'no',
+      'siap': 'done', 'selesai': 'done', 'habis': 'done', 'done': 'done', 'finish': 'done',
+      'tolong': 'help', 'bantuan': 'help', 'help': 'help', 'emergency': 'help', 'sos': 'help',
+
+      // 🍔 FOOD & DRINKS
+      'makan': 'hungry', 'lapar': 'hungry', 'eat': 'hungry', 'hungry': 'hungry', 'food': 'hungry',
+      'minum': 'water', 'haus': 'water', 'air': 'water', 'drink': 'water', 'thirsty': 'water', 'water': 'water',
+      'bubur': 'porridge', 'porridge': 'porridge',
+      'kopi': 'coffee', 'coffee': 'coffee',
+      'teh': 'tea', 'tea': 'tea',
+      'susu': 'milk', 'milk': 'milk',
+
+      // 💊 HEALTH & FEELINGS
+      'sakit': 'pain', 'pain': 'pain', 'hurt': 'pain', 'pedih': 'pain', 'luka': 'pain',
+      'pening': 'dizzy', 'dizzy': 'dizzy', 'pusing': 'dizzy',
+      'ubat': 'medicine', 'medicine': 'medicine', 'pill': 'medicine', 'drugs': 'medicine',
+      'nafas': 'breathe', 'semput': 'breathe', 'lelah': 'breathe', 'breathe': 'breathe',
+      'gatal': 'itchy', 'miang': 'itchy', 'itchy': 'itchy', 'scratch': 'itchy',
+      'penat': 'tired', 'letih': 'tired', 'tired': 'tired', 'exhausted': 'tired',
+      'sedih': 'sad', 'sad': 'sad', 'cry': 'sad', 'depressed': 'sad',
+      'marah': 'angry', 'angry': 'angry', 'mad': 'angry', 'bengang': 'angry',
+      'gembira': 'happy', 'seronok': 'happy', 'happy': 'happy', 'glad': 'happy', 'joy': 'happy',
+
+      // 🛏️ BODY & COMFORT
+      'duduk': 'sit', 'sit': 'sit',
+      'baring': 'lie', 'lie': 'lie', 'down': 'lie',
+      'pusing': 'turn', 'kalih': 'turn', 'turn': 'turn', 'move': 'turn',
+      'sejuk': 'cold', 'cold': 'cold', 'freezing': 'cold',
+      'panas': 'hot', 'hot': 'hot', 'warm': 'hot',
+      'rehat': 'rest', 'tidur': 'rest', 'rest': 'rest', 'sleep': 'rest',
+
+      // 🚿 HYGIENE & ENVIRONMENT
+      'tandas': 'toilet', 'kencing': 'toilet', 'berak': 'toilet', 'toilet': 'toilet', 'bathroom': 'toilet', 'pee': 'toilet', 'poop': 'toilet',
+      'mandi': 'shower', 'shower': 'shower', 'bath': 'shower', 'wash': 'shower',
+      'lampin': 'diaper', 'pampers': 'diaper', 'diaper': 'diaper',
+      'baju': 'clothes', 'seluar': 'clothes', 'pakaian': 'clothes', 'clothes': 'clothes', 'shirt': 'clothes', 'pants': 'clothes',
+      'berus': 'brush', 'gigi': 'brush', 'brush': 'brush', 'teeth': 'brush',
+      'lampu': 'light', 'terang': 'light', 'gelap': 'light', 'light': 'light', 'lamp': 'light',
+      'kipas': 'fan', 'aircon': 'fan', 'ekon': 'fan', 'fan': 'fan', 'ac': 'fan',
+      'bising': 'noisy', 'bingit': 'noisy', 'noisy': 'noisy', 'loud': 'noisy',
+      'senyap': 'quiet', 'diam': 'quiet', 'quiet': 'quiet', 'shh': 'quiet',
+      'tingkap': 'window', 'jendela': 'window', 'window': 'window',
+
+      // 🏥 LIFESTYLE / REHAB / OTHERS
+      'hospital': 'hospital', 'klinik': 'hospital', 'doktor': 'hospital', 'doctor': 'hospital', 'clinic': 'hospital', 'wad': 'hospital',
+      'keluarga': 'family', 'anak': 'family', 'isteri': 'family', 'suami': 'family', 'ibu': 'family', 'bapa': 'family', 'family': 'family',
+      'fisio': 'physio', 'senaman': 'physio', 'exercise': 'physio', 'physio': 'physio', 'therapy': 'physio',
+      'solat': 'pray', 'doa': 'pray', 'sembahyang': 'pray', 'pray': 'pray',
+      'bosan': 'bored', 'jemu': 'bored', 'bored': 'bored',
+      'telefon': 'phone', 'fon': 'phone', 'tepon': 'phone', 'call': 'phone', 'phone': 'phone',
+
+      // 🔢 NUMBERS
+      'kosong': 'num0', 'sifar': 'num0', 'zero': 'num0', '0': 'num0',
+      'satu': 'num1', 'one': 'num1', '1': 'num1',
+      'dua': 'num2', 'two': 'num2', '2': 'num2',
+      'tiga': 'num3', 'three': 'num3', '3': 'num3',
+      'empat': 'num4', 'four': 'num4', '4': 'num4',
+      'lima': 'num5', 'five': 'num5', '5': 'num5',
+      'enam': 'num6', 'six': 'num6', '6': 'num6',
+      'tujuh': 'num7', 'seven': 'num7', '7': 'num7',
+      'lapan': 'num8', 'eight': 'num8', '8': 'num8',
+      'sembilan': 'num9', 'nine': 'num9', '9': 'num9',
+    };
+
+    _dynamicKamus.addAll(baseKamus);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // 2. Tarik Kamus GLOBAL
+      final globalSnap = await FirebaseFirestore.instance.collection('global_pictograms').get();
+      for (var doc in globalSnap.docs) {
+        final data = doc.data();
+        String picId = data['pic_id'] ?? '';
+        String labelEn = (data['label_en'] ?? '').toString().toLowerCase().trim();
+        String labelMs = (data['label_ms'] ?? '').toString().toLowerCase().trim();
+
+        if (labelEn.isNotEmpty) _dynamicKamus[labelEn] = picId;
+        if (labelMs.isNotEmpty) _dynamicKamus[labelMs] = picId;
+      }
+
+      // 3. Tarik Kamus CUSTOM (Hak milik Caregiver ni)
+      final customSnap = await FirebaseFirestore.instance.collection('caregivers').doc(user.uid).collection('custom_pictograms').get();
+      for (var doc in customSnap.docs) {
+        final data = doc.data();
+        String picId = data['pic_id'] ?? '';
+        String labelEn = (data['label_en'] ?? '').toString().toLowerCase().trim();
+        String labelMs = (data['label_ms'] ?? '').toString().toLowerCase().trim();
+
+        if (labelEn.isNotEmpty) _dynamicKamus[labelEn] = picId;
+        if (labelMs.isNotEmpty) _dynamicKamus[labelMs] = picId;
+      }
+
+      debugPrint("✅ J.A.R.V.I.S: Otak AI Kamus Berjaya Disegerakkan! (Jumlah Kata Laluan: ${_dynamicKamus.length})");
+    } catch (e) {
+      debugPrint("🚨 J.A.R.V.I.S ERROR: Gagal sedut kamus dari Firebase -> $e");
     }
   }
 
@@ -273,6 +390,120 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     }
   }
 
+  // 🚀 LITAR DENGAR (VERSI UPGRADE SENSITIF & AGRESIF)
+  void _listenRemoteCommand() async {
+    if (!_isListening) {
+      bool available = await _speech.initialize(
+        onStatus: (val) {
+          debugPrint('🎤 STT Status: $val');
+          // 🚀 LOCK ANTI-SPAM
+          if ((val == 'notListening' || val == 'done') && _isListening) {
+            if (mounted) {
+              setState(() => _isListening = false);
+              if (_spokenText.isNotEmpty) {
+                _processKeyword(_spokenText.toLowerCase());
+                _spokenText = "";
+              }
+            }
+          }
+        },
+        onError: (val) {
+          debugPrint('🚨 STT Error: ${val.errorMsg}');
+          if (mounted) setState(() => _isListening = false);
+        },
+      );
+
+      if (available) {
+        if (mounted) setState(() => _isListening = true);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🟢 Cakap dengan jelas sekarang!"), backgroundColor: Colors.green, duration: Duration(seconds: 2)));
+
+        _speech.listen(
+          onResult: (val) {
+            if (mounted) {
+              setState(() {
+                _spokenText = val.recognizedWords;
+              });
+            }
+          },
+          // 🚀 INI BAHAGIAN UPGRADE SENSITIVITI!
+          listenFor: const Duration(seconds: 10), // Bagi masa panjang sikit untuk kau habiskan ayat
+          pauseFor: const Duration(seconds: 3),   // Beri peluang nafas 3 saat sebelum dia cut
+          partialResults: true,                   // Tangkap ayat serta-merta tanpa tunggu ayat habis
+          listenMode: stt.ListenMode.dictation,   // Paksa STT masuk mod IMLAK (paling sensitif tangkap perkataan sebutir-sebutir)
+          cancelOnError: true,
+        );
+      }
+    } else {
+      if (mounted) setState(() => _isListening = false);
+      _speech.stop();
+    }
+  }
+
+  // 🚀 LITAR AI TRANSLATOR KELAS DEWA (Kebal Nombor & Urutan Tepat)
+  void _processKeyword(String text) async {
+    List<Map<String, dynamic>> hasilCocok = [];
+
+    // Kita bersihkan dulu ayat tu supaya semua jadi lower case
+    String ayatLive = text.toLowerCase();
+
+    List<String> kunciKamus = _dynamicKamus.keys.toList();
+    // Sort dari paling panjang ke paling pendek
+    kunciKamus.sort((a, b) => b.length.compareTo(a.length));
+
+    for (String kunci in kunciKamus) {
+      // 🚀 TRIK REGEX KEBAL: Kita cari perkataan tu secara TEPAT menggunakan sempadan perkataan (\b)
+      // Ini akan selamatkan perkataan pendek macam "1" atau "ok" daripada tertelan
+      RegExp regex = RegExp(r'\b' + RegExp.escape(kunci) + r'\b');
+
+      Iterable<RegExpMatch> tangkapan = regex.allMatches(ayatLive);
+
+      for (final match in tangkapan) {
+        hasilCocok.add({
+          'id': _dynamicKamus[kunci]!,
+          'index': match.start, // Tangkap posisi indeks asli
+        });
+      }
+
+      // Buang perkataan yang dah ditangkap dengan menggantikan ia dengan space kosong
+      // supaya posisi index perkataan lain tak lari
+      ayatLive = ayatLive.replaceAllMapped(regex, (match) => " " * match.group(0)!.length);
+    }
+
+    // 🚀 URUTKAN BERDASARKAN INDEKS (Ngikutin urutan mulut kau)
+    hasilCocok.sort((a, b) => a['index'].compareTo(b['index']));
+
+    // Ekstrak hasil sortir ke final list
+    List<String> dikesan = [];
+    for (var cocok in hasilCocok) {
+      // Elak spam berturut-turut (1 1 1 jadi 1 je)
+      if (dikesan.isEmpty || dikesan.last != cocok['id']) {
+        dikesan.add(cocok['id']);
+      }
+    }
+
+    if (dikesan.isNotEmpty) {
+      String arahanPenuh = dikesan.join(',');
+
+      final user = FirebaseAuth.instance.currentUser;
+      await FirebaseFirestore.instance
+          .collection('caregivers')
+          .doc(user!.uid)
+          .collection('patients')
+          .doc(_currentData['patient_id'])
+          .update({'remote_command': arahanPenuh});
+
+      debugPrint("🚀 BERJAYA TEMBAK KE FIREBASE (SESUAI URUTAN): $arahanPenuh");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("🚀 Arahan dihantar: $arahanPenuh"), backgroundColor: Colors.blue));
+      }
+    } else {
+      debugPrint("🚨 ENJIN TAK FAHAM AYAT: $text");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Arahan tak faham."), backgroundColor: Colors.orange));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -300,6 +531,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           _buildInsightsTab(),
         ],
       ),
+      // FLOATING ACTION BUTTON MIC DAH KENA DELETE!
     );
   }
 
@@ -336,11 +568,33 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         _buildInfoCard("Relationship", _currentData['relationship'] ?? 'N/A', Icons.family_restroom),
         _buildInfoCard("Access PIN", _currentData['pin_code'] ?? 'N/A', Icons.lock_outline),
         const SizedBox(height: 20),
-        ElevatedButton.icon(
-          onPressed: _showEditDialog,
-          icon: const Icon(Icons.edit_rounded, color: AppTheme.primaryBlue),
-          label: const Text("EDIT PATIENT DETAILS", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.withValues(alpha: 0.1), elevation: 0, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+
+        // 🚀 LITAR BARU: BUTANG EDIT & MIC SEBARIS
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _showEditDialog,
+                icon: const Icon(Icons.edit_rounded, color: AppTheme.primaryBlue),
+                label: const Text("EDIT PATIENT DETAILS", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold, fontSize: 13)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.withValues(alpha: 0.1), elevation: 0, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // 🚀 INI BUTANG MIC KAU!
+            GestureDetector(
+              onTap: _listenRemoteCommand,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _isListening ? Colors.red : AppTheme.primaryBlue,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(_isListening ? Icons.mic_off : Icons.mic, color: Colors.white),
+              ),
+            )
+          ],
         )
       ],
     );

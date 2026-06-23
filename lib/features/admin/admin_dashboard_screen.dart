@@ -1,15 +1,15 @@
 import 'dart:io';
-import 'dart:js_interop';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'; // Wajib ada untuk kIsWeb
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:universal_html/html.dart' as html;
 // import '../../core/theme/app_theme.dart'; // Dibisukan sebab tak digunapakai mengikut amaran
-import 'package:web/web.dart' as html;
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -149,25 +149,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         csv += "${d['pic_id'] ?? 'N/A'},${d['patient_uid'] ?? 'N/A'},${d['caregiver_uid'] ?? 'N/A'},${d['timestamp']?.toDate().toString() ?? 'N/A'}\n";
       }
 
-      // 🚀 NEW WEB-COMPATIBLE DOWNLOAD LOGIC
-      final bytes = Uint8List.fromList(csv.codeUnits);
-      // Tukar ke JSArray supaya sesuai dengan library 'web'
-      final blob = html.Blob([bytes.toJS] as JSArray<html.BlobPart>, html.BlobPropertyBag(type: 'text/csv'));
+      // 🚀 LITAR BIJAK: Semak platform apa kita tengah run sekarang
+      if (kIsWeb) {
+        // ==========================================
+        // CARA WEB (CHROME / EDGE)
+        // ==========================================
+        final bytes = Uint8List.fromList(csv.codeUnits);
 
-      final url = html.URL.createObjectURL(blob);
-      final anchor = html.document.createElement('a') as html.HTMLAnchorElement;
-      anchor.href = url;
-      anchor.download = 'pictospeak_analytics_${DateTime.now().millisecondsSinceEpoch}.csv';
+        // Guna universal_html. Sangat simple, takde toJS!
+        final blob = html.Blob([bytes]);
+        final url = html.Url.createObjectUrlFromBlob(blob);
 
-      html.document.body!.appendChild(anchor);
-      anchor.click();
-      html.document.body!.removeChild(anchor);
-      html.URL.revokeObjectURL(url);
+        html.AnchorElement(href: url)
+          ..setAttribute("download", "pictospeak_analytics_${DateTime.now().millisecondsSinceEpoch}.csv")
+          ..click();
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ CSV berjaya dimuat turun!')));
+        html.Url.revokeObjectUrl(url);
+
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ CSV berjaya dimuat turun (Web)!')));
+
+      } else {
+        // ==========================================
+        // CARA MOBILE (ANDROID / IOS)
+        // ==========================================
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('🚨 Sila buka Admin Dashboard di Laptop/Chrome untuk export CSV.'),
+              backgroundColor: Colors.orange,
+            )
+        );
+      }
+
     } catch (e) {
       debugPrint("🚨 Ralat Export: $e");
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('🚨 Ralat: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('🚨 Ralat: $e'), backgroundColor: Colors.red));
     }
   }
 

@@ -15,6 +15,7 @@
 #include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
 #include <flutter_tts/flutter_tts_plugin.h>
 #include <local_auth_windows/local_auth_plugin.h>
+#include <speech_to_text_windows/speech_to_text_windows.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   AudioplayersWindowsPluginRegisterWithRegistrar(
@@ -35,4 +36,6 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FlutterTtsPlugin"));
   LocalAuthPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("LocalAuthPlugin"));
+  SpeechToTextWindowsRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("SpeechToTextWindows"));
 }

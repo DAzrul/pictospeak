@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/tts_service.dart';
 import '../auth/splash_screen.dart';
+import 'dart:async';
 
 class QuickNeedsScreen extends StatefulWidget {
   const QuickNeedsScreen({super.key});
@@ -14,6 +15,10 @@ class QuickNeedsScreen extends StatefulWidget {
 }
 
 class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
+
+  // 🚀 LITAR RECEIVER (PESAKIT)
+  StreamSubscription<DocumentSnapshot>? _remoteCommandSub;
+
   final TtsService _ttsService = TtsService();
 
   double _storedSpeed = 1.0;
@@ -23,7 +28,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   final List<String> _folderHistory = [];
   final List<Map<String, dynamic>> _selectedItems = [];
 
-  // 1. Tambah variable ni kat dalam class _QuickNeedsScreenState
   String _patientName = "Loading...";
   String? _patientImageUrl;
 
@@ -108,22 +112,86 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   }
 
   @override
+  void dispose() {
+    _remoteCommandSub?.cancel();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
-    _loadPatientInfo(); // 🚀 Panggil litar sedut info
+    _loadPatientInfo();
     _initStaticDatabase();
     _syncWithFirebase();
     _applyStoredSettings();
     _buildPersonalizedBrain();
   }
 
-  // 3. Litar Sedut Info Pesakit
+  // 🚀 RADAR PENERIMA (BOLEH TERIMA BANYAK ARAHAN SERENTAK)
+  void _listenForRemoteCommands(String patientId) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _remoteCommandSub = FirebaseFirestore.instance
+        .collection('caregivers')
+        .doc(user.uid)
+        .collection('patients')
+        .doc(patientId)
+        .snapshots()
+        .listen((snapshot) async {
+      if (snapshot.exists) {
+        final data = snapshot.data();
+        if (data != null && data.containsKey('remote_command')) {
+          String command = data['remote_command'];
+
+          if (command != 'none' && command.isNotEmpty) {
+
+            // 🚀 MATIKAN SUIS TERUS KAT AWAN! (Penyelamat daripada spam loop)
+            snapshot.reference.update({'remote_command': 'none'});
+
+            // Pecahkan "water,yes" jadi ['water', 'yes']
+            List<String> picIds = command.split(',');
+            List<Map<String, dynamic>> gambarDitemui = [];
+
+            // Geledah data untuk setiap ID
+            for (String id in picIds) {
+              try {
+                var foundPic = _mergedData.firstWhere(
+                      (item) => item['id'] == id && (item['isFolder'] == false || item['isFolder'] == null),
+                );
+                gambarDitemui.add(foundPic);
+              } catch (e) {
+                debugPrint("🚨 J.A.R.V.I.S: Gambar '$id' tak wujud!");
+              }
+            }
+
+            if (gambarDitemui.isNotEmpty && mounted) {
+              setState(() {
+                _selectedItems.addAll(gambarDitemui); // TAMPAL SEMUA SERENTAK!
+              });
+
+              // BINA AYAT PENUH & BACA!
+              String fullSentenceEn = gambarDitemui.map((p) => p['en']).join(' ');
+              List<String> collectedIds = gambarDitemui.map((p) => p['id'] as String).toList();
+
+              await _ttsService.stop();
+              await _applyStoredSettings();
+              await _ttsService.speak(fullSentenceEn, lang: "en-US");
+
+              // Masukkan dalam Graf (Sekali je untuk ayat penuh)
+              await _logCommunicationToFirebase(fullSentenceEn, collectedIds);
+            }
+          }
+        }
+      }
+    });
+  }
+
   Future<void> _loadPatientInfo() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? patientId = prefs.getString('patient_id');
 
     if (patientId != null) {
-      // Sedut dari Firestore untuk dapatkan URL gambar paling terkini
       var doc = await FirebaseFirestore.instance.collection('caregivers')
           .doc(FirebaseAuth.instance.currentUser!.uid)
           .collection('patients')
@@ -133,8 +201,10 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
       if (doc.exists) {
         setState(() {
           _patientName = doc.data()?['name'] ?? "Pesakit";
-          _patientImageUrl = doc.data()?['profile_image_url'];
+          _patientImageUrl = doc.data()?['profile_url']; // Fixed typo from 'profile_image_url'
         });
+
+        _listenForRemoteCommands(patientId);
       }
     }
   }
@@ -207,15 +277,13 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     final prefs = await SharedPreferences.getInstance();
     String? patientId = prefs.getString('patient_id');
 
-    if (user == null) return;
-    if (patientId == null || patientId.isEmpty) patientId = "nkRDAkCjRWVaC7biOZu7"; // Override fallback
+    if (user == null || patientId == null) return;
 
     String mood = "Neutral";
     if (itemIds.any((id) => ['happy', 'yes', 'pray'].contains(id))) mood = "Positive";
     if (itemIds.any((id) => ['sad', 'angry', 'pain', 'dizzy', 'noisy'].contains(id))) mood = "Negative";
 
     try {
-      // 1. Simpan Sejarah Ayat Penuh (Sedia ada)
       await FirebaseFirestore.instance
           .collection('caregivers')
           .doc(user.uid)
@@ -229,7 +297,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // 2. COP PESAKIT AKTIF - last_active (Sedia ada)
       await FirebaseFirestore.instance
           .collection('caregivers')
           .doc(user.uid)
@@ -237,10 +304,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           .doc(patientId)
           .update({'last_active': FieldValue.serverTimestamp()});
 
-      // 🚀 LOOP UNTUK SETIAP PIKTOGRAM YANG DITEKAN
       for (String id in itemIds) {
-
-        // 3. UPDATE PAPAN MARKAH - global_analytics (Sedia ada)
         await FirebaseFirestore.instance
             .collection('global_analytics')
             .doc(id)
@@ -250,19 +314,13 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           'last_triggered': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        // 4. 🚀 LITAR BARU: TULIS BUKU SEJARAH - usage_logs 🚀
-        // Ini yang Admin Dashboard kau nak sedut untuk kira Trend Bulanan!
         await FirebaseFirestore.instance.collection('usage_logs').add({
           'pic_id': id,
           'patient_uid': patientId,
           'caregiver_uid': user.uid,
           'timestamp': FieldValue.serverTimestamp(),
         });
-
       }
-
-      debugPrint("✅ J.A.R.V.I.S: Telemetry untuk [$fullSentence] berjaya ditembak ke semua pangkalan data!");
-
     } catch (e) {
       debugPrint("🚨 J.A.R.V.I.S ERROR: Tempatan terbakar masa nak save -> $e");
     }
@@ -282,7 +340,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   }
 
   void _initStaticDatabase() {
-    // 🚀 LITAR BARU: Tambah 'source': 'static' untuk semua data asal
     List<Map<String, dynamic>> rawStatic = [
       {'id': 'yes', 'folder': null, 'en': 'YES', 'ms': 'Ya', 'image': 'assets/Pictogram/yes.png', 'isFolder': false},
       {'id': 'no', 'folder': null, 'en': 'NO', 'ms': 'Tidak', 'image': 'assets/Pictogram/no.png', 'isFolder': false},
@@ -348,7 +405,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     ];
 
     _staticData = rawStatic.map((item) {
-      item['source'] = 'static'; // 🚀 Tag statik
+      item['source'] = 'static';
       return item;
     }).toList();
     _mergedData = List.from(_staticData);
@@ -359,7 +416,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     if (user == null) { setState(() => _isLoadingFirebase = false); return; }
 
     List<Map<String, dynamic>> globalItems = [];
-    Map<String, String> dynamicFolderSources = {}; // 🚀 Jejaki asal usul folder
+    Map<String, String> dynamicFolderSources = {};
 
     try {
       final globalSnap = await FirebaseFirestore.instance.collection('global_pictograms').get();
@@ -378,7 +435,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           'image': data['image_url'],
           'isFolder': false,
           'isNetwork': true,
-          'source': 'global', // 🚀 Tag Global
+          'source': 'global',
         });
 
         if (parent != null && parent.isNotEmpty) {
@@ -410,12 +467,10 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           'image': data['image_url'],
           'isFolder': false,
           'isNetwork': true,
-          'source': 'custom', // 🚀 Tag Custom
+          'source': 'custom',
         });
 
         if (parent != null && parent.isNotEmpty) {
-          // Kalau folder tu diwujudkan oleh user, kita tag as custom
-          // Walaupun nama dia sama dengan global, custom akan take-over visual dia
           dynamicFolderSources["$cat|$parent"] = 'custom';
         }
       }
@@ -433,7 +488,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           'image': 'assets/Pictogram/Environment/light.png',
           'isFolder': true,
           'isNetwork': false,
-          'source': sourceTag, // 🚀 Tag Folder
+          'source': sourceTag,
         });
       }
 
@@ -527,7 +582,8 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
 
     return Scaffold(
       backgroundColor: _isLowSensory ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
-      // 4. Update AppBar kau (Ganti AppBar asal dengan ni)
+
+      // 🚀 INI APPBAR UNTUK PESAKIT
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -550,7 +606,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
         ),
         title: Row(
           children: [
-            // 🚀 Gambar Profil Kecil (Mini Avatar)
             CircleAvatar(
               radius: 18,
               backgroundColor: AppTheme.primaryBlue.withOpacity(0.2),
@@ -570,6 +625,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           ],
         ),
       ),
+
       body: SafeArea(
         child: Column(
           children: [
@@ -654,6 +710,8 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
           ],
         ),
       ),
+
+      // 🚀 INI BUTANG SOS
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           showDialog(
@@ -693,31 +751,26 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     );
   }
 
-  // =========================================================
-  // 🎨 LITAR UI: SMART CARD DENGAN COLOR-CODING
-  // =========================================================
   Widget _buildSmartCard(Map<String, dynamic> item) {
     bool isFolder = item['isFolder'] ?? false;
-    String source = item['source'] ?? 'static'; // Tag yang kita buat tadi
+    String source = item['source'] ?? 'static';
 
     Color folderColor;
     Color itemBorderColor;
     IconData? sourceIcon;
     Color? sourceIconColor;
 
-    // 🚀 LITAR PENENTUAN WARNA & BADGE
     if (source == 'global') {
       folderColor = Colors.indigo;
       itemBorderColor = Colors.indigo.shade300;
-      sourceIcon = Icons.verified_rounded; // Badge Admin/Global
+      sourceIcon = Icons.verified_rounded;
       sourceIconColor = Colors.indigo;
     } else if (source == 'custom') {
       folderColor = Colors.orange.shade700;
       itemBorderColor = Colors.orange.shade300;
-      sourceIcon = Icons.person; // Badge User/Caregiver
+      sourceIcon = Icons.person;
       sourceIconColor = Colors.orange.shade700;
     } else {
-      // 'static' atau Bawaan App
       folderColor = AppTheme.primaryBlue;
       itemBorderColor = Colors.grey.shade300;
     }
@@ -763,7 +816,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
             ),
           ),
 
-          // Folder Tab (Kiri Atas)
           if (isFolder)
             Positioned(
               top: 0, left: 15,
@@ -774,7 +826,6 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
               ),
             ),
 
-          // 🚀 Badge Tanda Pangkat (Kanan Atas) - Hanya untuk Global/Custom
           if (sourceIcon != null)
             Positioned(
               top: isFolder ? 18 : 6, right: 6,
