@@ -364,6 +364,35 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     );
   }
 
+  BarChartGroupData _makeDynamicBarGroup(int x, double y) {
+    return BarChartGroupData(
+      x: x,
+      barRods: [
+        BarChartRodData(
+            toY: y,
+            color: AppTheme.primaryBlue,
+            width: 16,
+            borderRadius: BorderRadius.circular(4)
+        )
+      ],
+    );
+  }
+
+  // 📊 Helper untuk Carta 2 (Mood Monitor - pastikan kau dah letak ni jugak)
+  BarChartGroupData _makeMoodBarGroup(int x, double y, Color color) {
+    return BarChartGroupData(
+      x: x,
+      barRods: [
+        BarChartRodData(
+            toY: y,
+            color: color,
+            width: 28,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(6))
+        )
+      ],
+    );
+  }
+
   Widget _buildInsightsTab() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Center(child: Text("User not authorized."));
@@ -386,6 +415,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         int totalSentences = 0;
         int positiveMood = 0;
         int negativeMood = 0;
+        int neutralMood = 0; // 🚀 LITAR BARU: Tambah kaunter Neutral
         Map<String, int> keywordCounts = {};
 
         DateTime now = DateTime.now();
@@ -409,14 +439,20 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
             if (isWithinRange) {
               totalSentences++;
               String mood = data['mood'] ?? 'Neutral';
-              if (mood == 'Positive') positiveMood++;
-              if (mood == 'Negative') negativeMood++;
+
+              // 🚀 LITAR BARU: Asingkan mood ikut kategori
+              if (mood == 'Positive') {
+                positiveMood++;
+              } else if (mood == 'Negative') {
+                negativeMood++;
+              } else {
+                neutralMood++;
+              }
 
               List<dynamic> items = data['items'] ?? [];
               for (var item in items) {
                 String wordStr = item.toString().trim();
 
-                // Exclude raw Firebase Document IDs (20 chars, alphanumeric)
                 if (wordStr.isEmpty || (wordStr.length == 20 && !wordStr.contains(' ') && RegExp(r'^[a-zA-Z0-9]+$').hasMatch(wordStr))) continue;
 
                 wordStr = "${wordStr[0].toUpperCase()}${wordStr.substring(1).toLowerCase()}";
@@ -434,6 +470,9 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         List<String> top4Items = sortedKeys.take(4).toList();
         List<int> top4Values = top4Items.map((k) => keywordCounts[k]!).toList();
         double maxYGraph = top4Values.isNotEmpty ? top4Values.reduce((a, b) => a > b ? a : b).toDouble() : 10;
+
+        // 🚀 Setup maksimum skala carta Mood Monitor
+        double maxMoodY = [positiveMood, neutralMood, negativeMood].reduce((a, b) => a > b ? a : b).toDouble() + 2;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -462,6 +501,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               ),
               const SizedBox(height: 16),
 
+              // 📊 CARTA 1: MOST FREQUENT NEEDS
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -526,6 +566,78 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               ),
               const SizedBox(height: 16),
 
+              // 🚀 📊 CARTA 2: MOOD MONITOR (BARU!)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.psychology_alt_rounded, color: Colors.purple, size: 20),
+                        SizedBox(width: 8),
+                        Text('Mood Monitor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Frequency of emotional states based on communication.', style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                    const SizedBox(height: 30),
+
+                    SizedBox(
+                      height: 180,
+                      child: (positiveMood == 0 && neutralMood == 0 && negativeMood == 0)
+                          ? const Center(child: Text("No mood data available.", style: TextStyle(color: Colors.grey)))
+                          : BarChart(
+                        BarChartData(
+                          alignment: BarChartAlignment.spaceEvenly,
+                          maxY: maxMoodY,
+                          barGroups: [
+                            _makeMoodBarGroup(0, positiveMood.toDouble(), Colors.green.shade400),
+                            _makeMoodBarGroup(1, neutralMood.toDouble(), Colors.grey.shade400),
+                            _makeMoodBarGroup(2, negativeMood.toDouble(), Colors.red.shade400),
+                          ],
+                          titlesData: FlTitlesData(
+                            show: true,
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (value, meta) {
+                                  switch (value.toInt()) {
+                                    case 0: return const Text('Positive', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold));
+                                    case 1: return const Text('Neutral', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold));
+                                    case 2: return const Text('Negative', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold));
+                                    default: return const Text('');
+                                  }
+                                },
+                              ),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 28,
+                                getTitlesWidget: (value, meta) {
+                                  if (value % 1 == 0 && value != 0) { // Tunjuk nombor bulat je
+                                    return Text(value.toInt().toString(), style: const TextStyle(color: Colors.grey, fontSize: 10));
+                                  }
+                                  return const Text('');
+                                },
+                              ),
+                            ),
+                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          ),
+                          gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: 1, getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.shade200, strokeWidth: 1)),
+                          borderData: FlBorderData(show: false),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 📜 COMMUNICATION LOG (Sedia ada)
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -630,13 +742,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           ],
         ),
       ),
-    );
-  }
-
-  BarChartGroupData _makeDynamicBarGroup(int x, double y) {
-    return BarChartGroupData(
-      x: x,
-      barRods: [BarChartRodData(toY: y, color: AppTheme.primaryBlue, width: 16, borderRadius: BorderRadius.circular(4))],
     );
   }
 }

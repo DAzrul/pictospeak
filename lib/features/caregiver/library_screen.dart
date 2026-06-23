@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../core/theme/app_theme.dart';
 import 'add_pictogram_screen.dart';
 
@@ -53,6 +54,60 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         _currentFolder = null;
       }
     });
+  }
+
+  // =========================================================================
+  // 🗑️ LITAR PEMUSNAH: PADAM CUSTOM PICTOGRAM
+  // =========================================================================
+  Future<void> _deleteCustomPictogram(String docId, String imageUrl) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // 🚀 Litar amaran sebelum tembak!
+    bool confirm = await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Padam Pictogram?"),
+          content: const Text("Adakah anda pasti nak buang gambar ni dari koleksi peribadi anda?"),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Batal", style: TextStyle(color: Colors.grey))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Hapus", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        )
+    ) ?? false;
+
+    if (!confirm) return;
+
+    try {
+      // 1. Padam dari Firestore Database
+      await FirebaseFirestore.instance
+          .collection('caregivers')
+          .doc(user.uid)
+          .collection('custom_pictograms')
+          .doc(docId)
+          .delete();
+
+      // 2. Padam gambar dari Storage (Kalau link tu memang dari Storage kita)
+      if (imageUrl.contains('firebasestorage')) {
+        try {
+          await FirebaseStorage.instance.refFromURL(imageUrl).delete();
+        } catch (e) {
+          debugPrint("Gambar storage tak wujud/dah kena padam: $e");
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🗑️ Pictogram berjaya dipadam!"), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("🚨 Gagal memadam: $e"), backgroundColor: Colors.red));
+      }
+    }
   }
 
   @override
@@ -211,8 +266,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         if (index < folderList.length) {
           return _buildFolderCard(folderList[index], docs, isGlobal);
         } else {
-          final fileData = filteredFiles[index - folderList.length].data() as Map<String, dynamic>;
-          return _buildCustomIconCard(fileData, isGlobal);
+          // 🚀 Hantar doc (Snapshot) terus, supaya kita boleh dapat doc.id untuk delete
+          return _buildCustomIconCard(filteredFiles[index - folderList.length], isGlobal);
         }
       },
     );
@@ -257,43 +312,71 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildCustomIconCard(Map<String, dynamic> data, bool isGlobal) {
+  // 🚀 LITAR KAD DENGAN TONG SAMPAH
+  Widget _buildCustomIconCard(QueryDocumentSnapshot doc, bool isGlobal) {
+    final data = doc.data() as Map<String, dynamic>;
     String textEn = data['label_en'] ?? data['en'] ?? 'Unknown';
     String imageUrl = data['image_url'] ?? '';
+    String docId = doc.id; // 🚀 Tarik ID Dokumen
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
-        border: Border.all(color: isGlobal ? Colors.indigo.shade100 : Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              child: imageUrl.isNotEmpty
-                  ? Image.network(imageUrl, width: double.infinity, fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.grey))
-                  : const Icon(Icons.image, color: Colors.grey),
-            ),
+    return Stack(
+      children: [
+        Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+            border: Border.all(color: isGlobal ? Colors.indigo.shade100 : Colors.grey.shade200),
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isGlobal) const Icon(Icons.verified_rounded, color: Colors.blue, size: 12),
-                if (isGlobal) const SizedBox(width: 4),
-                Flexible(
-                  child: Text(textEn, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+          child: Column(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                  child: imageUrl.isNotEmpty
+                      ? Image.network(imageUrl, width: double.infinity, fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.grey))
+                      : const Icon(Icons.image, color: Colors.grey),
                 ),
-              ],
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (isGlobal) const Icon(Icons.verified_rounded, color: Colors.blue, size: 12),
+                    if (isGlobal) const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(textEn, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              )
+            ],
+          ),
+        ),
+
+        // 🚀 LITAR TONG SAMPAH: HANYA MUNCUL DI TAB "MY CUSTOM" (BUKAN GLOBAL)
+        if (!isGlobal)
+          Positioned(
+            top: 4,
+            right: 4,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.9),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+                onPressed: () => _deleteCustomPictogram(docId, imageUrl),
+              ),
             ),
           )
-        ],
-      ),
+      ],
     );
   }
 }

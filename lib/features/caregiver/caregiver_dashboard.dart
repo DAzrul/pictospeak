@@ -15,6 +15,8 @@ import 'add_patient_screen.dart';
 import 'library_screen.dart';
 import 'settings_screen.dart';
 import 'package:audioplayers/audioplayers.dart';
+// 🚀 LITAR BARU: IMPORT FAIL LOGBOOK KAU
+import 'emergency_logbook_screen.dart'; // Pastikan path ni betul ikut susunan folder kau!
 
 class CaregiverDashboard extends StatefulWidget {
   const CaregiverDashboard({super.key});
@@ -443,7 +445,23 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
             style: TextStyle(color: AppTheme.textDark, fontSize: 18, fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
-          // 🚀 LITAR LOCENG PINTAR DENGAN "MEMORI"
+          // =========================================================
+          // 🚀 LITAR BARU: BUTANG EMERGENCY LOGBOOK
+          // =========================================================
+          IconButton(
+            icon: const Icon(Icons.medical_information_rounded, color: Colors.redAccent),
+            tooltip: 'Siren History',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const EmergencyLogbookScreen()),
+              );
+            },
+          ),
+
+          // =========================================================
+          // 🚀 LITAR LOCENG PINTAR DENGAN "MEMORI" (YANG SEDIA ADA)
+          // =========================================================
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance.collection('system_configs').doc('general').snapshots(),
             builder: (context, configSnapshot) {
@@ -466,8 +484,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                         .length;
                   }
 
-                  // 🚀 Logik Memori: Nyala KALAU pengumuman tak sama dengan apa yang dihafal,
-                  // ATAU jumlah tiket yang selesai lebih banyak dari apa yang dihafal.
+                  // Logik Memori
                   bool hasNewAnnouncement = currentAnnouncement.trim().isNotEmpty && currentAnnouncement != _lastSeenAnnouncement;
                   bool hasNewResolvedTicket = currentResolvedCount > _lastSeenResolvedCount;
 
@@ -480,7 +497,6 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                       child: const Icon(Icons.notifications_active_outlined, color: AppTheme.primaryBlue),
                     ),
                     onPressed: () {
-                      // Bila tekan, J.A.R.V.I.S terus "Hafal" data baru supaya titik merah padam!
                       _markNotificationsAsRead(currentAnnouncement, currentResolvedCount);
                       _showNotificationsPanel(context);
                     },

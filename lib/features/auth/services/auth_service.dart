@@ -212,7 +212,7 @@ class AuthService {
   }
 
   // ---------------------------------------------------------
-  // 🚀 9. GOOGLE LOGIN + AUTO-REGISTER
+  // 🚀 9. GOOGLE LOGIN + AUTO-REGISTER (DAH FIX KANTOI KOPI)
   // ---------------------------------------------------------
   Future<User?> signInWithGoogle() async {
     try {
@@ -233,7 +233,26 @@ class AuthService {
         await _secureStorage.write(key: 'saved_email', value: user.email);
         await _secureStorage.write(key: 'login_method', value: 'google');
 
-        // ... kod simpan ke Firestore kau yang sedia ada ...
+        print("J.A.R.V.I.S: Memeriksa status pendaftaran profil di Firestore...");
+
+        // 🔥 LITAR BARU: Check sama ada data user ni dah wujud tak dalam table caregivers
+        final docSnap = await _firestore.collection('caregivers').doc(user.uid).get();
+
+        if (!docSnap.exists) {
+          print("J.A.R.V.I.S: Pengguna Google baru dikesan! Menyuntik data profil induk...");
+
+          // Cipta dokumen induk supaya tulisan kat Firebase tak senget/italic lagi!
+          await _firestore.collection('caregivers').doc(user.uid).set({
+            'uid': user.uid,
+            'name': user.displayName ?? 'Caregiver Google', // Tarik nama dari akaun Google
+            'email': user.email,
+            'created_at': FieldValue.serverTimestamp(),
+            'login_method': 'google',
+          });
+          print("J.A.R.V.I.S: Profil Google baru berjaya didaftarkan ke Firestore!");
+        } else {
+          print("J.A.R.V.I.S: Profil sedia ada dijumpai. Melangkau proses ciptaan data.");
+        }
       }
       return user;
     } catch (e) {
