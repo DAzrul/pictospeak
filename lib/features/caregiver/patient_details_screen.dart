@@ -22,7 +22,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
   late TabController _tabController;
   late Map<String, dynamic> _currentData;
 
-  String _selectedAnalyticMode = 'Daily';
+  String _selectedAnalyticMode = 'Last 7 Days'; // Default yang paling logik
   bool _isUploadingPic = false;
 
   // 🚀 LITAR VOICE COMMAND (CAREGIVER)
@@ -576,7 +576,8 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
 
         DateTime now = DateTime.now();
         DateTime startOfToday = DateTime(now.year, now.month, now.day);
-        DateTime startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
+        DateTime startOf7Days = startOfToday.subtract(const Duration(days: 7));
+        DateTime startOf30Days = startOfToday.subtract(const Duration(days: 30));
 
         for (var doc in docs) {
           final data = doc.data() as Map<String, dynamic>;
@@ -585,10 +586,20 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           if (timestamp != null) {
             bool isWithinRange = false;
 
-            if (_selectedAnalyticMode == 'Daily') {
-              if (timestamp.isAfter(startOfToday) || timestamp.isAtSameMomentAs(startOfToday)) isWithinRange = true;
-            } else {
-              if (timestamp.isAfter(startOfWeek) || timestamp.isAtSameMomentAs(startOfWeek)) isWithinRange = true;
+            // 🚀 LOGIK FILTER DEWA KITA
+            switch (_selectedAnalyticMode) {
+              case 'Today':
+                if (timestamp.isAfter(startOfToday) || timestamp.isAtSameMomentAs(startOfToday)) isWithinRange = true;
+                break;
+              case 'Last 7 Days':
+                if (timestamp.isAfter(startOf7Days) || timestamp.isAtSameMomentAs(startOf7Days)) isWithinRange = true;
+                break;
+              case 'Last 30 Days':
+                if (timestamp.isAfter(startOf30Days) || timestamp.isAtSameMomentAs(startOf30Days)) isWithinRange = true;
+                break;
+              case 'All Time':
+                isWithinRange = true; // Sapu bersih semua data!
+                break;
             }
 
             if (isWithinRange) {
@@ -644,7 +655,10 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _selectedAnalyticMode,
-                    items: ['Daily', 'Weekly'].map((String mode) => DropdownMenuItem(value: mode, child: Text(mode))).toList(),
+                    // 🚀 INI FILTER STANDARD INDUSTRI KITA!
+                    items: ['Today', 'Last 7 Days', 'Last 30 Days', 'All Time']
+                        .map((String mode) => DropdownMenuItem(value: mode, child: Text(mode, style: const TextStyle(fontWeight: FontWeight.bold))))
+                        .toList(),
                     onChanged: (val) => setState(() => _selectedAnalyticMode = val!),
                   ),
                 ),

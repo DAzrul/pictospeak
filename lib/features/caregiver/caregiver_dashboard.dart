@@ -262,7 +262,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                     children: [
                       Icon(Icons.notifications_active_rounded, color: AppTheme.primaryBlue),
                       SizedBox(width: 10),
-                      Text("Pusat Notifikasi", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppTheme.textDark)),
+                      Text("Notification Center", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppTheme.textDark)),
                     ],
                   ),
                   IconButton(
@@ -271,7 +271,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                   )
                 ],
               ),
-              const Text("Pengumuman rasmi dan status tiket anda.", style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const Text("Official announcement and status of your ticket.", style: TextStyle(color: Colors.grey, fontSize: 13)),
               const SizedBox(height: 16),
 
               // 🚀 1. LITAR PENGUMUMAN ADMIN
@@ -301,7 +301,7 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
                           children: [
                             Icon(Icons.campaign_outlined, color: Colors.amber.shade800, size: 20),
                             const SizedBox(width: 8),
-                            Text("PENGUMUMAN SISTEM", style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                            Text("SYSTEM ANNOUNCEMENT", style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                           ],
                         ),
                         const SizedBox(height: 8),
