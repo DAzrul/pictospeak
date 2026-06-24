@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // 🚀 J.A.R.V.I.S: Wajib untuk litar Password
@@ -35,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _largeTargets = false;
 
   bool _biometricEnabled = false;
+  bool _isLoading = false; // 🚀 Ni punca error "Undefined name"
 
   @override
   void initState() {
@@ -241,6 +243,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _archiveAndWipePatientData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final prefs = await SharedPreferences.getInstance();
+    String? patientId = prefs.getString('patient_id');
+
+    if (user == null || patientId == null) return;
+
+    try {
+      setState(() => _isLoading = true);
+      final firestore = FirebaseFirestore.instance;
+      final patientRef = firestore.collection('caregivers').doc(user.uid).collection('patients').doc(patientId);
+
+      // Senarai sub-collection yang nak di-archive
+      List<String> collectionsToArchive = ['communication_logs', 'weekly_reports'];
+
+      for (String collName in collectionsToArchive) {
+        bool hasMore = true;
+        while (hasMore) {
+          // Tarik 400 rekod je setiap kali (biar tak langgar limit 500 batch)
+          var query = patientRef.collection(collName).limit(400);
+          var snapshot = await query.get();
+
+          if (snapshot.docs.isEmpty) {
+            hasMore = false;
+            continue;
+          }
+
+          WriteBatch batch = firestore.batch();
+          for (var doc in snapshot.docs) {
+            // 1. Copy ke archive
+            DocumentReference archiveRef = firestore.collection('archived_logs').doc();
+            batch.set(archiveRef, {
+              ...doc.data(),
+              'original_path': doc.reference.path,
+              'archived_at': FieldValue.serverTimestamp(),
+            });
+
+            // 2. Padam asal
+            batch.delete(doc.reference);
+          }
+
+          await batch.commit(); // Hantar 400 operasi sekaligus
+          debugPrint("J.A.R.V.I.S: Berjaya archive & wipe 400 rekod dari $collName...");
+        }
+      }
+
+      _showSnackBar("✅ Ribuan data berjaya di-archive!", Colors.green);
+      setState(() => _isLoading = false);
+    } catch (e) {
+      _showSnackBar("Ralat: $e", Colors.red);
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -437,7 +493,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               Navigator.pop(context);
-              _showSnackBar('All data has been wiped!', Colors.black);
+              _archiveAndWipePatientData(); // 🚀 Panggil fungsi pemusnah kat sini!
             },
             child: const Text('YES, DELETE EVERYTHING', style: TextStyle(color: Colors.white)),
           ),

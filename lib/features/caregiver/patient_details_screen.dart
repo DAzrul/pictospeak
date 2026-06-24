@@ -24,7 +24,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
 
   String _selectedAnalyticMode = 'Daily';
   bool _isUploadingPic = false;
-  bool _isGeneratingReport = false; // Loading state for report
 
   // 🚀 LITAR VOICE COMMAND (CAREGIVER)
   late stt.SpeechToText _speech;
@@ -42,23 +41,18 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
 
     _speech = stt.SpeechToText(); // 🚀 Setup Mikrofon
     _autoCheckAndSaveWeeklyReport();
-
-    // 🚀 PANGGIL DIA KAT SINI!
     _initDynamicDictionary();
   }
 
-  // 🚀 Protocol: Auto-Generate & Save Weekly Report
   Future<void> _autoCheckAndSaveWeeklyReport() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     final now = DateTime.now();
-    // Cari tarikh Isnin untuk minggu ini (Start of the week)
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
     final startOfWeekDate = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
 
     try {
-      // 1. SEMAK DATABASE: Ada tak report untuk minggu ni?
       final existingReports = await FirebaseFirestore.instance
           .collection('caregivers').doc(user.uid)
           .collection('patients').doc(_currentData['patient_id'])
@@ -66,13 +60,11 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           .where('week_start', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfWeekDate))
           .get();
 
-      // Kalau report MINGGU INI dah ada, litar dimatikan. Tak payah spam database.
       if (existingReports.docs.isNotEmpty) {
         debugPrint("🚀 J.A.R.V.I.S: Report minggu ni dah wujud. Skip Auto-Save.");
         return;
       }
 
-      // 2. Kalau takde, kita sedut data 7 hari lepas secara senyap
       debugPrint("🚀 J.A.R.V.I.S: Report minggu ni belum ada! Memulakan Auto-Save...");
       final lastWeek = now.subtract(const Duration(days: 7));
 
@@ -85,7 +77,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
 
       int totalSentences = querySnapshot.docs.length;
 
-      // Kalau seminggu ni pesakit bisu/tak guna app langsung, litar batal. Tak payah save report kosong.
       if (totalSentences == 0) {
         debugPrint("🚀 J.A.R.V.I.S: Tiada data komunikasi. Auto-Save dibatalkan.");
         return;
@@ -102,7 +93,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
 
       String overallMood = (positiveCount == 0 && negativeCount == 0) ? "Neutral" : (positiveCount >= negativeCount ? "Positive" : "Distressed");
 
-      // 3. Tulis (SAVE) secara automatik ke Firebase!
       await FirebaseFirestore.instance
           .collection('caregivers').doc(user.uid)
           .collection('patients').doc(_currentData['patient_id'])
@@ -125,17 +115,14 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     }
   }
 
-  // 🚀 PROTOKOL: Sedut Label dari Firebase & Jadikan Kamus AI
   Future<void> _initDynamicDictionary() async {
-    // 1. Masukkan kamus STATIK (Bawaan App) dulu
+    // 🚀 UBAT: Pastikan takde 'key' yang berulang dalam kamus ni!
     Map<String, String> baseKamus = {
-      // 🟢 BASIC / COMMANDS
       'ya': 'yes', 'yes': 'yes', 'nak': 'yes', 'mau': 'yes', 'ok': 'yes',
       'tak': 'no', 'tidak': 'no', 'no': 'no', 'dont': 'no', 'jangan': 'no',
       'siap': 'done', 'selesai': 'done', 'habis': 'done', 'done': 'done', 'finish': 'done',
       'tolong': 'help', 'bantuan': 'help', 'help': 'help', 'emergency': 'help', 'sos': 'help',
 
-      // 🍔 FOOD & DRINKS
       'makan': 'hungry', 'lapar': 'hungry', 'eat': 'hungry', 'hungry': 'hungry', 'food': 'hungry',
       'minum': 'water', 'haus': 'water', 'air': 'water', 'drink': 'water', 'thirsty': 'water', 'water': 'water',
       'bubur': 'porridge', 'porridge': 'porridge',
@@ -143,7 +130,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
       'teh': 'tea', 'tea': 'tea',
       'susu': 'milk', 'milk': 'milk',
 
-      // 💊 HEALTH & FEELINGS
       'sakit': 'pain', 'pain': 'pain', 'hurt': 'pain', 'pedih': 'pain', 'luka': 'pain',
       'pening': 'dizzy', 'dizzy': 'dizzy', 'pusing': 'dizzy',
       'ubat': 'medicine', 'medicine': 'medicine', 'pill': 'medicine', 'drugs': 'medicine',
@@ -154,15 +140,13 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
       'marah': 'angry', 'angry': 'angry', 'mad': 'angry', 'bengang': 'angry',
       'gembira': 'happy', 'seronok': 'happy', 'happy': 'happy', 'glad': 'happy', 'joy': 'happy',
 
-      // 🛏️ BODY & COMFORT
       'duduk': 'sit', 'sit': 'sit',
       'baring': 'lie', 'lie': 'lie', 'down': 'lie',
-      'pusing': 'turn', 'kalih': 'turn', 'turn': 'turn', 'move': 'turn',
+      'pusing bad': 'turn', 'kalih': 'turn', 'turn': 'turn', 'move': 'turn',
       'sejuk': 'cold', 'cold': 'cold', 'freezing': 'cold',
       'panas': 'hot', 'hot': 'hot', 'warm': 'hot',
       'rehat': 'rest', 'tidur': 'rest', 'rest': 'rest', 'sleep': 'rest',
 
-      // 🚿 HYGIENE & ENVIRONMENT
       'tandas': 'toilet', 'kencing': 'toilet', 'berak': 'toilet', 'toilet': 'toilet', 'bathroom': 'toilet', 'pee': 'toilet', 'poop': 'toilet',
       'mandi': 'shower', 'shower': 'shower', 'bath': 'shower', 'wash': 'shower',
       'lampin': 'diaper', 'pampers': 'diaper', 'diaper': 'diaper',
@@ -174,7 +158,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
       'senyap': 'quiet', 'diam': 'quiet', 'quiet': 'quiet', 'shh': 'quiet',
       'tingkap': 'window', 'jendela': 'window', 'window': 'window',
 
-      // 🏥 LIFESTYLE / REHAB / OTHERS
       'hospital': 'hospital', 'klinik': 'hospital', 'doktor': 'hospital', 'doctor': 'hospital', 'clinic': 'hospital', 'wad': 'hospital',
       'keluarga': 'family', 'anak': 'family', 'isteri': 'family', 'suami': 'family', 'ibu': 'family', 'bapa': 'family', 'family': 'family',
       'fisio': 'physio', 'senaman': 'physio', 'exercise': 'physio', 'physio': 'physio', 'therapy': 'physio',
@@ -182,7 +165,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
       'bosan': 'bored', 'jemu': 'bored', 'bored': 'bored',
       'telefon': 'phone', 'fon': 'phone', 'tepon': 'phone', 'call': 'phone', 'phone': 'phone',
 
-      // 🔢 NUMBERS
       'kosong': 'num0', 'sifar': 'num0', 'zero': 'num0', '0': 'num0',
       'satu': 'num1', 'one': 'num1', '1': 'num1',
       'dua': 'num2', 'two': 'num2', '2': 'num2',
@@ -201,7 +183,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     if (user == null) return;
 
     try {
-      // 2. Tarik Kamus GLOBAL
       final globalSnap = await FirebaseFirestore.instance.collection('global_pictograms').get();
       for (var doc in globalSnap.docs) {
         final data = doc.data();
@@ -213,7 +194,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         if (labelMs.isNotEmpty) _dynamicKamus[labelMs] = picId;
       }
 
-      // 3. Tarik Kamus CUSTOM (Hak milik Caregiver ni)
       final customSnap = await FirebaseFirestore.instance.collection('caregivers').doc(user.uid).collection('custom_pictograms').get();
       for (var doc in customSnap.docs) {
         final data = doc.data();
@@ -231,7 +211,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     }
   }
 
-  // 🚀 Protocol: Upload Profile Picture
   Future<void> _uploadProfilePic() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
@@ -273,7 +252,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     }
   }
 
-  // 🚀 Protocol: Edit Patient Details
   void _showEditDialog() {
     final nameCtrl = TextEditingController(text: _currentData['name']);
     final ageCtrl = TextEditingController(text: _currentData['age'].toString());
@@ -333,70 +311,11 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     );
   }
 
-  // 🚀 Protocol: Generate & Save Weekly Report (Data Persistence)
-  Future<void> _generateAndSaveWeeklyReport() async {
-    setState(() => _isGeneratingReport = true);
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      final now = DateTime.now();
-      final lastWeek = now.subtract(const Duration(days: 7));
-
-      // Fetch raw logs for the past 7 days
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('caregivers').doc(user!.uid)
-          .collection('patients').doc(_currentData['patient_id'])
-          .collection('communication_logs')
-          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(lastWeek))
-          .get();
-
-      int totalSentences = querySnapshot.docs.length;
-      int positiveCount = 0;
-      int negativeCount = 0;
-
-      for (var doc in querySnapshot.docs) {
-        String mood = doc.data()['mood'] ?? 'Neutral';
-        if (mood == 'Positive') positiveCount++;
-        if (mood == 'Negative') negativeCount++;
-      }
-
-      String overallMood = (positiveCount == 0 && negativeCount == 0) ? "Neutral" : (positiveCount >= negativeCount ? "Positive" : "Distressed");
-
-      // Save to weekly_reports sub-collection
-      await FirebaseFirestore.instance
-          .collection('caregivers').doc(user.uid)
-          .collection('patients').doc(_currentData['patient_id'])
-          .collection('weekly_reports')
-          .add({
-        'week_start': Timestamp.fromDate(lastWeek),
-        'week_end': Timestamp.now(),
-        'total_sentences': totalSentences,
-        'positive_mood_count': positiveCount,
-        'negative_mood_count': negativeCount,
-        'overall_mood': overallMood,
-        'summary': 'Weekly report manually generated by Caregiver',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Weekly report saved to database successfully!"), backgroundColor: Colors.green));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error saving report: $e"), backgroundColor: Colors.red));
-      }
-    } finally {
-      setState(() => _isGeneratingReport = false);
-    }
-  }
-
-  // 🚀 LITAR DENGAR (VERSI UPGRADE SENSITIF & AGRESIF)
   void _listenRemoteCommand() async {
     if (!_isListening) {
       bool available = await _speech.initialize(
         onStatus: (val) {
           debugPrint('🎤 STT Status: $val');
-          // 🚀 LOCK ANTI-SPAM
           if ((val == 'notListening' || val == 'done') && _isListening) {
             if (mounted) {
               setState(() => _isListening = false);
@@ -425,11 +344,10 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               });
             }
           },
-          // 🚀 INI BAHAGIAN UPGRADE SENSITIVITI!
-          listenFor: const Duration(seconds: 10), // Bagi masa panjang sikit untuk kau habiskan ayat
-          pauseFor: const Duration(seconds: 3),   // Beri peluang nafas 3 saat sebelum dia cut
-          partialResults: true,                   // Tangkap ayat serta-merta tanpa tunggu ayat habis
-          listenMode: stt.ListenMode.dictation,   // Paksa STT masuk mod IMLAK (paling sensitif tangkap perkataan sebutir-sebutir)
+          listenFor: const Duration(seconds: 10),
+          pauseFor: const Duration(seconds: 3),
+          partialResults: true,
+          listenMode: stt.ListenMode.dictation,
           cancelOnError: true,
         );
       }
@@ -439,43 +357,31 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     }
   }
 
-  // 🚀 LITAR AI TRANSLATOR KELAS DEWA (Kebal Nombor & Urutan Tepat)
   void _processKeyword(String text) async {
     List<Map<String, dynamic>> hasilCocok = [];
-
-    // Kita bersihkan dulu ayat tu supaya semua jadi lower case
     String ayatLive = text.toLowerCase();
 
     List<String> kunciKamus = _dynamicKamus.keys.toList();
-    // Sort dari paling panjang ke paling pendek
     kunciKamus.sort((a, b) => b.length.compareTo(a.length));
 
     for (String kunci in kunciKamus) {
-      // 🚀 TRIK REGEX KEBAL: Kita cari perkataan tu secara TEPAT menggunakan sempadan perkataan (\b)
-      // Ini akan selamatkan perkataan pendek macam "1" atau "ok" daripada tertelan
       RegExp regex = RegExp(r'\b' + RegExp.escape(kunci) + r'\b');
-
       Iterable<RegExpMatch> tangkapan = regex.allMatches(ayatLive);
 
       for (final match in tangkapan) {
         hasilCocok.add({
           'id': _dynamicKamus[kunci]!,
-          'index': match.start, // Tangkap posisi indeks asli
+          'index': match.start,
         });
       }
 
-      // Buang perkataan yang dah ditangkap dengan menggantikan ia dengan space kosong
-      // supaya posisi index perkataan lain tak lari
       ayatLive = ayatLive.replaceAllMapped(regex, (match) => " " * match.group(0)!.length);
     }
 
-    // 🚀 URUTKAN BERDASARKAN INDEKS (Ngikutin urutan mulut kau)
     hasilCocok.sort((a, b) => a['index'].compareTo(b['index']));
 
-    // Ekstrak hasil sortir ke final list
     List<String> dikesan = [];
     for (var cocok in hasilCocok) {
-      // Elak spam berturut-turut (1 1 1 jadi 1 je)
       if (dikesan.isEmpty || dikesan.last != cocok['id']) {
         dikesan.add(cocok['id']);
       }
@@ -531,7 +437,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           _buildInsightsTab(),
         ],
       ),
-      // FLOATING ACTION BUTTON MIC DAH KENA DELETE!
     );
   }
 
@@ -569,7 +474,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         _buildInfoCard("Access PIN", _currentData['pin_code'] ?? 'N/A', Icons.lock_outline),
         const SizedBox(height: 20),
 
-        // 🚀 LITAR BARU: BUTANG EDIT & MIC SEBARIS
         Row(
           children: [
             Expanded(
@@ -582,7 +486,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
             ),
             const SizedBox(width: 12),
 
-            // 🚀 INI BUTANG MIC KAU!
             GestureDetector(
               onTap: _listenRemoteCommand,
               child: Container(
@@ -632,7 +535,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
     );
   }
 
-  // 📊 Helper untuk Carta 2 (Mood Monitor - pastikan kau dah letak ni jugak)
   BarChartGroupData _makeMoodBarGroup(int x, double y, Color color) {
     return BarChartGroupData(
       x: x,
@@ -669,7 +571,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         int totalSentences = 0;
         int positiveMood = 0;
         int negativeMood = 0;
-        int neutralMood = 0; // 🚀 LITAR BARU: Tambah kaunter Neutral
+        int neutralMood = 0;
         Map<String, int> keywordCounts = {};
 
         DateTime now = DateTime.now();
@@ -683,9 +585,8 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
           if (timestamp != null) {
             bool isWithinRange = false;
 
-            // Analytic Mode Filtering
             if (_selectedAnalyticMode == 'Daily') {
-              if (timestamp.isAfter(startOfToday)) isWithinRange = true;
+              if (timestamp.isAfter(startOfToday) || timestamp.isAtSameMomentAs(startOfToday)) isWithinRange = true;
             } else {
               if (timestamp.isAfter(startOfWeek) || timestamp.isAtSameMomentAs(startOfWeek)) isWithinRange = true;
             }
@@ -694,7 +595,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               totalSentences++;
               String mood = data['mood'] ?? 'Neutral';
 
-              // 🚀 LITAR BARU: Asingkan mood ikut kategori
               if (mood == 'Positive') {
                 positiveMood++;
               } else if (mood == 'Negative') {
@@ -705,12 +605,14 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
 
               List<dynamic> items = data['items'] ?? [];
               for (var item in items) {
-                String wordStr = item.toString().trim();
+                String picId = item.toString().trim();
+                if (picId.isEmpty) continue;
 
-                if (wordStr.isEmpty || (wordStr.length == 20 && !wordStr.contains(' ') && RegExp(r'^[a-zA-Z0-9]+$').hasMatch(wordStr))) continue;
-
-                wordStr = "${wordStr[0].toUpperCase()}${wordStr.substring(1).toLowerCase()}";
-                keywordCounts[wordStr] = (keywordCounts[wordStr] ?? 0) + 1;
+                // 🚀 LITAR BARU: Papar ID raw kat graf (sebab kita dah buang _mergedData)
+                // Kalau nama tu panjang, kita ambil perkataan pertama je supaya graf tak kembang
+                String labelSebenar = picId.split('_').first;
+                labelSebenar = "${labelSebenar[0].toUpperCase()}${labelSebenar.substring(1).toLowerCase()}";
+                keywordCounts[labelSebenar] = (keywordCounts[labelSebenar] ?? 0) + 1;
               }
             }
           }
@@ -723,16 +625,19 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
         var sortedKeys = keywordCounts.keys.toList()..sort((a, b) => keywordCounts[b]!.compareTo(keywordCounts[a]!));
         List<String> top4Items = sortedKeys.take(4).toList();
         List<int> top4Values = top4Items.map((k) => keywordCounts[k]!).toList();
-        double maxYGraph = top4Values.isNotEmpty ? top4Values.reduce((a, b) => a > b ? a : b).toDouble() : 10;
 
-        // 🚀 Setup maksimum skala carta Mood Monitor
-        double maxMoodY = [positiveMood, neutralMood, negativeMood].reduce((a, b) => a > b ? a : b).toDouble() + 2;
+        double maxYGraph = top4Values.isNotEmpty ? top4Values.reduce((a, b) => a > b ? a : b).toDouble() : 5;
+        maxYGraph = maxYGraph < 5 ? 5 : maxYGraph + 2;
+        double intervalKeperluan = maxYGraph >= 20 ? 5 : (maxYGraph >= 10 ? 2 : 1);
+
+        double maxMoodY = [positiveMood, neutralMood, negativeMood].reduce((a, b) => a > b ? a : b).toDouble();
+        maxMoodY = maxMoodY < 5 ? 5 : maxMoodY + 2;
+        double intervalMood = maxMoodY >= 20 ? 5 : (maxMoodY >= 10 ? 2 : 1);
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              // DROPDOWN FILTER
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -755,7 +660,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               ),
               const SizedBox(height: 16),
 
-              // 📊 CARTA 1: MOST FREQUENT NEEDS
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -778,7 +682,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                           : BarChart(
                         BarChartData(
                           alignment: BarChartAlignment.spaceAround,
-                          maxY: maxYGraph + 2,
+                          maxY: maxYGraph,
                           barGroups: List.generate(top4Items.length, (index) {
                             return _makeDynamicBarGroup(index, top4Values[index].toDouble());
                           }),
@@ -790,8 +694,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                                 getTitlesWidget: (value, meta) {
                                   if (value.toInt() >= top4Items.length) return const Text('');
                                   String titleRaw = top4Items[value.toInt()];
-                                  String titleFormat = "${titleRaw[0].toUpperCase()}${titleRaw.substring(1).toLowerCase()}";
-                                  return Text(titleFormat, style: const TextStyle(color: Colors.grey, fontSize: 10));
+                                  return Text(titleRaw, style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold));
                                 },
                               ),
                             ),
@@ -800,7 +703,8 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                                 showTitles: true,
                                 reservedSize: 28,
                                 getTitlesWidget: (value, meta) {
-                                  if (value % (maxYGraph > 20 ? 5 : 2) == 0) {
+                                  if (value == 0) return const Text('');
+                                  if (value % intervalKeperluan == 0) {
                                     return Text(value.toInt().toString(), style: const TextStyle(color: Colors.grey, fontSize: 10));
                                   }
                                   return const Text('');
@@ -810,7 +714,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                           ),
-                          gridData: const FlGridData(show: false),
+                          gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: intervalKeperluan, getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.shade200, strokeWidth: 1)),
                           borderData: FlBorderData(show: false),
                         ),
                       ),
@@ -820,7 +724,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               ),
               const SizedBox(height: 16),
 
-              // 🚀 📊 CARTA 2: MOOD MONITOR (BARU!)
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -871,7 +774,8 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                                 showTitles: true,
                                 reservedSize: 28,
                                 getTitlesWidget: (value, meta) {
-                                  if (value % 1 == 0 && value != 0) { // Tunjuk nombor bulat je
+                                  if (value == 0) return const Text('');
+                                  if (value % intervalMood == 0) {
                                     return Text(value.toInt().toString(), style: const TextStyle(color: Colors.grey, fontSize: 10));
                                   }
                                   return const Text('');
@@ -881,7 +785,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
                             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                           ),
-                          gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: 1, getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.shade200, strokeWidth: 1)),
+                          gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: intervalMood, getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.shade200, strokeWidth: 1)),
                           borderData: FlBorderData(show: false),
                         ),
                       ),
@@ -891,7 +795,6 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen> with Single
               ),
               const SizedBox(height: 16),
 
-              // 📜 COMMUNICATION LOG (Sedia ada)
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),

@@ -6,6 +6,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/tts_service.dart';
 import '../auth/splash_screen.dart';
 import 'dart:async';
+import 'dart:math';
+import 'package:confetti/confetti.dart';
 
 class QuickNeedsScreen extends StatefulWidget {
   const QuickNeedsScreen({super.key});
@@ -20,6 +22,9 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   StreamSubscription<DocumentSnapshot>? _remoteCommandSub;
 
   final TtsService _ttsService = TtsService();
+
+  // 🚀 MERIAM CONFETTI KITA
+  late ConfettiController _confettiController;
 
   double _storedSpeed = 1.0;
   double _storedPitch = 1.0;
@@ -112,19 +117,23 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   }
 
   @override
-  void dispose() {
-    _remoteCommandSub?.cancel();
-    super.dispose();
-  }
-
-  @override
   void initState() {
     super.initState();
+    // Setup meriam supaya tembak selama 2 saat
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
     _loadPatientInfo();
     _initStaticDatabase();
     _syncWithFirebase();
     _applyStoredSettings();
     _buildPersonalizedBrain();
+  }
+
+
+  @override
+  void dispose() {
+    _remoteCommandSub?.cancel();
+    _confettiController.dispose(); // Wajib buang supaya tak bocor memori!
+    super.dispose();
   }
 
   // 🚀 RADAR PENERIMA (BOLEH TERIMA BANYAK ARAHAN SERENTAK)
@@ -201,7 +210,7 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
       if (doc.exists) {
         setState(() {
           _patientName = doc.data()?['name'] ?? "Pesakit";
-          _patientImageUrl = doc.data()?['profile_url']; // Fixed typo from 'profile_image_url'
+          _patientImageUrl = doc.data()?['profile_url'];
         });
 
         _listenForRemoteCommands(patientId);
@@ -329,6 +338,12 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
   Future<void> _speakAllItems() async {
     if (_selectedItems.isEmpty) return;
 
+    // 🚀 LITAR GAMIFIKASI: Kalau dia buat ayat 3 perkataan atau lebih, kita raikan!
+    if (_selectedItems.length >= 3) {
+      _confettiController.play(); // Tembak confetti!
+      _showAchievementBadge();    // Keluar popup pingat
+    }
+
     String fullSentenceEn = _selectedItems.map((item) => item['en']).join(' ');
     List<String> itemIds = _selectedItems.map((item) => item['id'] as String).toList();
 
@@ -337,6 +352,35 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
     await _ttsService.speak(fullSentenceEn, lang: "en-US");
 
     await _logCommunicationToFirebase(fullSentenceEn, itemIds);
+  }
+
+  // 🚀 POPUP PINGAT PENCAPAIAN
+  void _showAchievementBadge() {
+    showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            backgroundColor: Colors.white,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("🌟 Tahniah! 🌟", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.amber)),
+                const SizedBox(height: 15),
+                const Icon(Icons.emoji_events_rounded, size: 80, color: Colors.amber),
+                const SizedBox(height: 15),
+                const Text("Anda berjaya membina ayat yang hebat!", textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  child: const Text("Teruskan!", style: TextStyle(color: Colors.white)),
+                )
+              ],
+            ),
+          );
+        }
+    );
   }
 
   void _initStaticDatabase() {
@@ -580,175 +624,220 @@ class _QuickNeedsScreenState extends State<QuickNeedsScreen> {
 
     List<Map<String, dynamic>> aiSuggestions = _currentRecommendations;
 
-    return Scaffold(
-      backgroundColor: _isLowSensory ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
+    // 🚀 BUNGKUS DENGAN STACK SUPAYA CONFETTI BOLEH DUDUK ATAS UI!
+    return Stack(
+      children: [
 
-      // 🚀 INI APPBAR UNTUK PESAKIT
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(_currentFolder != null ? Icons.arrow_back_ios_new : Icons.power_settings_new,
-              color: _currentFolder != null ? AppTheme.textDark : Colors.redAccent),
-          onPressed: () async {
-            _ttsService.stop();
-            if (_folderHistory.isNotEmpty) {
-              setState(() {
-                _folderHistory.removeLast();
-                _currentFolder = _folderHistory.isEmpty ? null : _folderHistory.last;
-              });
-            } else {
-              SharedPreferences prefs = await SharedPreferences.getInstance();
-              await prefs.setBool('is_patient_logged_in', false);
-              if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const SplashScreen()));
-            }
-          },
-        ),
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppTheme.primaryBlue.withOpacity(0.2),
-              backgroundImage: _patientImageUrl != null ? NetworkImage(_patientImageUrl!) : null,
-              child: _patientImageUrl == null ? const Icon(Icons.person, size: 20, color: AppTheme.primaryBlue) : null,
+        // ---------------------------------------------------------
+        // 📱 INI SCAFFOLD ASAL PESAKIT (Takde benda berubah kat sini)
+        // ---------------------------------------------------------
+        Scaffold(
+          backgroundColor: _isLowSensory ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
+
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: Icon(_currentFolder != null ? Icons.arrow_back_ios_new : Icons.power_settings_new,
+                  color: _currentFolder != null ? AppTheme.textDark : Colors.redAccent),
+              onPressed: () async {
+                _ttsService.stop();
+                if (_folderHistory.isNotEmpty) {
+                  setState(() {
+                    _folderHistory.removeLast();
+                    _currentFolder = _folderHistory.isEmpty ? null : _folderHistory.last;
+                  });
+                } else {
+                  SharedPreferences prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('is_patient_logged_in', false);
+                  if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const SplashScreen()));
+                }
+              },
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_patientName, style: const TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.bold, fontSize: 16)),
-                  const Text("Quick Needs", style: TextStyle(color: Colors.grey, fontSize: 11)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (_selectedItems.isNotEmpty)
-              Container(
-                height: isTablet ? 140 : 160, width: double.infinity, color: Colors.white,
-                child: Column(
-                  children: [
-                    Expanded(child: _buildImageScroller(isTablet)),
-                    Padding(padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), child: _buildActionButtons()),
-                  ],
+            title: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AppTheme.primaryBlue.withOpacity(0.2),
+                  backgroundImage: _patientImageUrl != null ? NetworkImage(_patientImageUrl!) : null,
+                  child: _patientImageUrl == null ? const Icon(Icons.person, size: 20, color: AppTheme.primaryBlue) : null,
                 ),
-              ),
-
-            if (aiSuggestions.isNotEmpty)
-              Container(
-                height: 80,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
-                    border: Border(bottom: BorderSide(color: Colors.amber.shade200, width: 2))
-                ),
-                child: Row(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12.0),
-                      child: Icon(Icons.auto_awesome, color: Colors.amber),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: aiSuggestions.length,
-                        itemBuilder: (context, index) {
-                          final suggestion = aiSuggestions[index];
-                          return InkWell(
-                            onTap: () async {
-                              setState(() => _selectedItems.add(suggestion));
-                              await _ttsService.stop();
-                              await _applyStoredSettings();
-                              await _ttsService.speak(suggestion['en'], lang: "en-US");
-                              await _logCommunicationToFirebase(suggestion['en'], [suggestion['id']]);
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.all(8.0),
-                              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.amber.shade300),
-                              ),
-                              child: Row(
-                                children: [
-                                  SizedBox(height: 30, width: 30, child: _renderImage(suggestion)),
-                                  const SizedBox(width: 8),
-                                  Text(suggestion['en'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            Expanded(
-              child: _isLoadingFirebase
-                  ? const Center(child: CircularProgressIndicator())
-                  : GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: _useLargeTargets ? (gridColumns - 1).clamp(2, 5) : gridColumns,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: _useLargeTargets ? 1.0 : 0.8,
-                ),
-                itemCount: _currentDisplayItems.length,
-                itemBuilder: (context, index) => _buildSmartCard(_currentDisplayItems[index]),
-              ),
-            ),
-          ],
-        ),
-      ),
-
-      // 🚀 INI BUTANG SOS
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: Colors.red.shade50,
-              title: const Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.red, size: 30),
-                  SizedBox(width: 10),
-                  Text("PANGGIL BANTUAN?", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              content: const Text("Adakah anda perlukan bantuan kecemasan sekarang?"),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("BATAL", style: TextStyle(color: Colors.grey))
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _triggerSOS();
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  child: const Text("YA, TOLONG SAYA!", style: TextStyle(color: Colors.white)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_patientName, style: const TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.bold, fontSize: 16)),
+                      const Text("Quick Needs", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    ],
+                  ),
                 ),
               ],
             ),
-          );
-        },
-        backgroundColor: Colors.red.shade600,
-        elevation: 6,
-        icon: const Icon(Icons.sos_rounded, color: Colors.white, size: 30),
-        label: const Text("SOS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-      ),
+          ),
+
+          body: SafeArea(
+            child: Column(
+              children: [
+                if (_selectedItems.isNotEmpty)
+                  Container(
+                    height: isTablet ? 140 : 160, width: double.infinity, color: Colors.white,
+                    child: Column(
+                      children: [
+                        Expanded(child: _buildImageScroller(isTablet)),
+                        Padding(padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), child: _buildActionButtons()),
+                      ],
+                    ),
+                  ),
+
+                if (aiSuggestions.isNotEmpty)
+                  Container(
+                    height: 80,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        border: Border(bottom: BorderSide(color: Colors.amber.shade200, width: 2))
+                    ),
+                    child: Row(
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12.0),
+                          child: Icon(Icons.auto_awesome, color: Colors.amber),
+                        ),
+                        Expanded(
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: aiSuggestions.length,
+                            itemBuilder: (context, index) {
+                              final suggestion = aiSuggestions[index];
+                              return InkWell(
+                                onTap: () async {
+                                  setState(() => _selectedItems.add(suggestion));
+                                  await _ttsService.stop();
+                                  await _applyStoredSettings();
+                                  await _ttsService.speak(suggestion['en'], lang: "en-US");
+                                  await _logCommunicationToFirebase(suggestion['en'], [suggestion['id']]);
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.all(8.0),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.amber.shade300),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(height: 30, width: 30, child: _renderImage(suggestion)),
+                                      const SizedBox(width: 8),
+                                      Text(suggestion['en'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                Expanded(
+                  child: _isLoadingFirebase
+                      ? const Center(child: CircularProgressIndicator())
+                      : GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: _useLargeTargets ? (gridColumns - 1).clamp(2, 5) : gridColumns,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: _useLargeTargets ? 1.0 : 0.8,
+                    ),
+                    itemCount: _currentDisplayItems.length,
+                    itemBuilder: (context, index) => _buildSmartCard(_currentDisplayItems[index]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 🚀 INI BUTANG SOS (DIBUAT RESPONSIVE)
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: Colors.red.shade50,
+                  // 🚀 UBAT OVERFLOW DI SINI: Balut Text dengan Expanded!
+                  title: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 30),
+                      const SizedBox(width: 10),
+                      Expanded( // <--- INI PENYELAMAT NYA!
+                        child: const Text("PANGGIL BANTUAN?", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  content: const Text("Adakah anda perlukan bantuan kecemasan sekarang?"),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("BATAL", style: TextStyle(color: Colors.grey))
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _triggerSOS();
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      child: const Text("YA, TOLONG SAYA!", style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+            },
+            backgroundColor: Colors.red.shade600,
+            elevation: 6,
+            icon: const Icon(Icons.sos_rounded, color: Colors.white, size: 30),
+            label: const Text("SOS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+          ),
+        ),
+
+        // ---------------------------------------------------------
+        // 🎉 INI WIDGET CONFETTI KITA (Duduk Paling Atas!)
+        // ---------------------------------------------------------
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive, // Tembak 360 darjah!
+            shouldLoop: false,
+            colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple],
+            createParticlePath: _drawStar, // Panggil sihir lukis bintang
+          ),
+        ),
+      ],
     );
+  }
+
+  // 🎨 HELPER: SIHIR LUKIS BINTANG CONFETTI (Letak bawah fungsi build)
+  Path _drawStar(Size size) {
+    double degToRad(double deg) => deg * (pi / 180.0);
+    const numberOfPoints = 5;
+    final halfWidth = size.width / 2;
+    final externalRadius = halfWidth;
+    final internalRadius = halfWidth / 2.5;
+    final degreesPerStep = degToRad(360 / numberOfPoints);
+    final halfDegreesPerStep = degreesPerStep / 2;
+    final path = Path();
+    final fullAngle = degToRad(360);
+    path.moveTo(size.width, halfWidth);
+    for (double step = 0; step < fullAngle; step += degreesPerStep) {
+      path.lineTo(halfWidth + externalRadius * cos(step), halfWidth + externalRadius * sin(step));
+      path.lineTo(halfWidth + internalRadius * cos(step + halfDegreesPerStep), halfWidth + internalRadius * sin(step + halfDegreesPerStep));
+    }
+    path.close();
+    return path;
   }
 
   Widget _buildSmartCard(Map<String, dynamic> item) {
