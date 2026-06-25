@@ -16,6 +16,7 @@ import 'core/services/sync_service.dart';
 
 // 🚀 J.A.R.V.I.S: Wajib import skrin maintenance kau! (Periksa path ni kalau salah)
 import 'features/auth/maintenance_screen.dart';
+import 'features/auth/admin_login_screen.dart';
 
 // =========================================================
 // 🚨 J.A.R.V.I.S GHOST PROTOCOL MARK II: BACKGROUND HANDLER
@@ -62,39 +63,53 @@ class MyApp extends StatelessWidget {
       title: 'PictoSpeak',
       theme: AppTheme.lightTheme,
 
-      // =========================================================
-      // 🚀 LITAR DIKTATOR J.A.R.V.I.S (GLOBAL MAINTENANCE OVERRIDE)
-      // =========================================================
+      // Litar Diktator J.A.R.V.I.S kau kekalkan macam biasa...
       builder: (context, child) {
-        // 🚨 VVIP BYPASS: Kalau bukak kat Web (Admin), jangan block!
-        // Nanti Admin sendiri terkunci dari Dashboard nak off suis macam mana babi 😂
         if (kIsWeb) return child!;
-
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance.collection('system_configs').doc('general').snapshots(),
           builder: (context, snapshot) {
-            // Intip secara live dari bumbung app
             if (snapshot.hasData && snapshot.data!.exists) {
               var data = snapshot.data!.data() as Map<String, dynamic>;
-              bool isMaintenance = data['maintenance_mode'] ?? false;
-
-              // Kalau admin petik suis ON, tendang app mobile masuk MaintenanceScreen!
-              if (isMaintenance) {
-                return const MaintenanceScreen();
-              }
+              if (data['maintenance_mode'] ?? false) return const MaintenanceScreen();
             }
-            // Kalau OFF, app jalan macam biasa
             return child!;
           },
         );
       },
 
-      // 🚨 LOGIK DUA ALAM (HYBRID ROUTING)
-      // Kalau kat Browser -> Terus ke Admin Dashboard
-      // Kalau kat Android/iOS -> Pergi ke Splash Screen Pesakit/Penjaga
+      // 🚨 LOGIK ROUTING BARU (ADA BOUNCER)
       home: kIsWeb
-          ? const AdminDashboardScreen()
-          : const SplashScreen(),
+          ? const AdminAuthGate() // 👈 Kalau kat Web, pergi ke pintu gate dulu
+          : const SplashScreen(), // 👈 Kalau App, jalan macam biasa
+    );
+  }
+}
+
+// =========================================================
+// 🚀 LITAR BOUNCER: ADMIN AUTH GATE (LETAK BAWAH SEKALI DALAM MAIN.DART)
+// =========================================================
+class AdminAuthGate extends StatelessWidget {
+  const AdminAuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Kalau tengah loading check token
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF1E1B4B))));
+        }
+
+        // Kalau Firebase tak jumpa token user (Belum Login)
+        if (!snapshot.hasData) {
+          return const AdminLoginScreen(); // ⛔ Tendang ke Skrin Login
+        }
+
+        // Kalau token wujud (Dah Login)
+        return const AdminDashboardScreen(); // ✅ Benarkan masuk Dashboard
+      },
     );
   }
 }
