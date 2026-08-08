@@ -57,6 +57,7 @@ dependencies:
   web: ^1.1.1
   universal_html: ^2.3.0
   confetti: ^0.8.0
+  flutter_ringtone_player: ^4.0.0+4
 
 dev_dependencies:
   flutter_test:

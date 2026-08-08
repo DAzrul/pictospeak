@@ -17,21 +17,31 @@ import 'core/services/sync_service.dart';
 // 🚀 J.A.R.V.I.S: Wajib import skrin maintenance kau! (Periksa path ni kalau salah)
 import 'features/auth/maintenance_screen.dart';
 import 'features/auth/admin_login_screen.dart';
-
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 // =========================================================
 // 🚨 J.A.R.V.I.S GHOST PROTOCOL MARK II: BACKGROUND HANDLER
 // Litar ni MESTI duduk luar dari sebarang class (Top-level)
 // =========================================================
+// =========================================================
+// 🚨 J.A.R.V.I.S GHOST PROTOCOL: BACKGROUND HANDLER
+// =========================================================
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Pastikan Firebase dah initialize dalam background (sebab memori utama app dah mati)
+  // Hidupkan nadi Firebase masa memori utama mati
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  print("🚨 J.A.R.V.I.S: KECEMASAN DIKESAN MASA APP MATI! ID: ${message.messageId}");
+  print("🚨 J.A.R.V.I.S: NOTIFIKASI KECEMASAN MASUK MASA APP MAMPUS! ID: ${message.messageId}");
 
-  // Nota untuk VIVA:
-  // Untuk bunyikan siren secara fizikal kat sini, kita perlukan Firebase Cloud Functions (backend)
-  // dan plugin khas (macam flutter_ringtone_player) untuk bypass sekatan OS bateri.
+  // Tapis kalau notification tu memang jenis SOS
+  if (message.data['type'] == 'SOS_ALERT') {
+    // 🚀 Litar ni akan tembus Silent Mode dan melolong macam orang gila!
+    FlutterRingtonePlayer().play(
+      fromAsset: "assets/sounds/siren.mp3", // Pastikan path ni betul wujud!
+      looping: true, // Biar dia menjerit sampai Caregiver buka app
+      volume: 1.0,
+      asAlarm: true, // Wajib letak true untuk override OS battery restriction
+    );
+  }
 }
 
 void main() async {

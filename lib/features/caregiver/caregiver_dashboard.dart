@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // 🚀 J.A.R.V.I.S: WAJIB IMPORT UNTUK MEMORI!
 import 'package:pictospeak/features/caregiver/patient_details_screen.dart';
 import '../../core/theme/app_theme.dart';
@@ -41,6 +42,10 @@ class _CaregiverDashboardState extends State<CaregiverDashboard> {
   @override
   void initState() {
     super.initState();
+
+    // 🚀 J.A.R.V.I.S: Matikan siren background bila caregiver berjaya masuk dashboard
+    FlutterRingtonePlayer().stop();
+
     _startSosRadar();
     _registerDeviceToken();
     _loadNotificationState(); // 🚀 Sedut memori lama masa app buka
